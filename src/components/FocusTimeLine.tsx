@@ -1,6 +1,10 @@
 import { motion } from "framer-motion";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { participants, getCategoryColor, MEETING_DURATION, ActivitySegment } from "@/data/meetingData";
+import { 
+  Tooltip, 
+  TooltipTrigger, 
+  TooltipContent 
+} from '@radix-ui/react-tooltip';
+import { participants, getCategoryColor, MEETING_DURATION, type ActivitySegment } from "../data/meetingData";
 
 const timeLabels = Array.from({ length: 13 }, (_, i) => {
   const min = i * 5;
