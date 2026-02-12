@@ -1,7 +1,6 @@
 import MeetingHeader from "../components/MeetingHeader";
 import FocusTimeline from "../components/FocusTimeLine";
 import StatisticsPanel from "../components/StatisticsPanel";
-
 const Index = () => {
   return (
     <div className="min-h-screen bg-background">
@@ -11,7 +10,8 @@ const Index = () => {
         <StatisticsPanel />
 
         <p className="text-center text-xs text-muted-foreground mt-8 opacity-60">
-          🔒 Privacy-first · No screenshots or keystrokes · Only app names & timestamps
+          🔒 Privacy-first · No screenshots or keystrokes · Only app names &
+          timestamps
         </p>
       </div>
     </div>

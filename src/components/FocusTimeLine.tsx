@@ -1,10 +1,16 @@
 import { motion } from "framer-motion";
-import { 
-  Tooltip, 
-  TooltipTrigger, 
-  TooltipContent 
-} from '@radix-ui/react-tooltip';
-import { participants, getCategoryColor, MEETING_DURATION, type ActivitySegment } from "../data/meetingData";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
+import {
+  participants,
+  getCategoryColor,
+  MEETING_DURATION,
+  type ActivitySegment,
+} from "../data/meetingData";
 
 const timeLabels = Array.from({ length: 13 }, (_, i) => {
   const min = i * 5;
@@ -40,7 +46,11 @@ const SegmentBar = ({
         <motion.div
           initial={{ scaleX: 0 }}
           animate={{ scaleX: 1 }}
-          transition={{ delay: 0.5 + pIdx * 0.1 + sIdx * 0.05, duration: 0.4, ease: "easeOut" }}
+          transition={{
+            delay: 0.5 + pIdx * 0.1 + sIdx * 0.05,
+            duration: 0.4,
+            ease: "easeOut",
+          }}
           className={`absolute top-0.5 bottom-0.5 rounded-md ${getCategoryColor(seg.category)} opacity-85 hover:opacity-100 transition-opacity cursor-default flex items-center justify-center origin-left`}
           style={{ left: `${left}%`, width: `${width}%` }}
         >
@@ -51,9 +61,12 @@ const SegmentBar = ({
         </motion.div>
       </TooltipTrigger>
       <TooltipContent className="text-xs">
-        <p className="font-medium">{participantName} was on {seg.app}</p>
+        <p className="font-medium">
+          {participantName} was on {seg.app}
+        </p>
         <p className="text-muted-foreground">
-          {duration} mins ({startH}:{startM.toString().padStart(2, "0")} – {endH}:{endM.toString().padStart(2, "0")})
+          {duration} mins ({startH}:{startM.toString().padStart(2, "0")} –{" "}
+          {endH}:{endM.toString().padStart(2, "0")})
         </p>
       </TooltipContent>
     </Tooltip>
@@ -79,7 +92,7 @@ const FocusTimeline = () => {
             <span
               key={label}
               className="absolute text-[10px] text-muted-foreground -translate-x-1/2"
-              style={{ left: `${(i * 5 / MEETING_DURATION) * 100}%` }}
+              style={{ left: `${((i * 5) / MEETING_DURATION) * 100}%` }}
             >
               {label}
             </span>
@@ -91,7 +104,7 @@ const FocusTimeline = () => {
       <div className="space-y-3">
         {participants.map((p, pIdx) => {
           const meetingSegs = p.segments.filter(isMeetingApp);
-          const otherSegs = p.segments.filter(s => !isMeetingApp(s));
+          const otherSegs = p.segments.filter((s) => !isMeetingApp(s));
 
           return (
             <motion.div
@@ -108,7 +121,14 @@ const FocusTimeline = () => {
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-sm font-medium">{p.name}</span>
-                  {p.improved && <span className="text-xs" title="Improved since last meeting">🌱</span>}
+                  {p.improved && (
+                    <span
+                      className="text-xs"
+                      title="Improved since last meeting"
+                    >
+                      🌱
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -116,19 +136,35 @@ const FocusTimeline = () => {
               <div className="flex-1 flex flex-col gap-0.5">
                 {/* Lane 1: Meeting */}
                 <div className="flex items-center">
-                  <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-2">Meeting</div>
+                  <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-2">
+                    Meeting
+                  </div>
                   <div className="flex-1 relative h-7 bg-focus-green/10 rounded-md overflow-hidden">
                     {meetingSegs.map((seg, sIdx) => (
-                      <SegmentBar key={sIdx} seg={seg} pIdx={pIdx} sIdx={sIdx} participantName={p.name} />
+                      <SegmentBar
+                        key={sIdx}
+                        seg={seg}
+                        pIdx={pIdx}
+                        sIdx={sIdx}
+                        participantName={p.name}
+                      />
                     ))}
                   </div>
                 </div>
                 {/* Lane 2: Other */}
                 <div className="flex items-center">
-                  <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-2">Other</div>
+                  <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-2">
+                    Other
+                  </div>
                   <div className="flex-1 relative h-7 bg-muted/50 rounded-md overflow-hidden">
                     {otherSegs.map((seg, sIdx) => (
-                      <SegmentBar key={sIdx} seg={seg} pIdx={pIdx} sIdx={sIdx + meetingSegs.length} participantName={p.name} />
+                      <SegmentBar
+                        key={sIdx}
+                        seg={seg}
+                        pIdx={pIdx}
+                        sIdx={sIdx + meetingSegs.length}
+                        participantName={p.name}
+                      />
                     ))}
                   </div>
                 </div>
@@ -140,10 +176,19 @@ const FocusTimeline = () => {
 
       {/* Legend */}
       <div className="flex flex-wrap gap-4 mt-5 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-focus-green" /> Meeting App</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-focus-red" /> Media / Social</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-focus-purple" /> Dev Tools</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-focus-blue" /> Office Apps</span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-focus-green" /> Meeting App
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-focus-red" /> Media /
+          Social
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-focus-purple" /> Dev Tools
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-focus-blue" /> Office Apps
+        </span>
       </div>
     </motion.div>
   );
