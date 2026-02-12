@@ -1,24 +1,17 @@
 import socket
-import tkinter as tk
-from tkinter import ttk
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
 from aw_client import ActivityWatchClient
 from aw_core.models import Event
 from datetime import datetime, timedelta, timezone
 import ollama  
 from collections import defaultdict
 
-client = ActivityWatchClient("meeting-focus-client", testing=False)
-
+# Constants
 HOSTNAME = socket.gethostname()
-WINDOW_BUCKET = "aw-watcher-window_{}".format(HOSTNAME)
-AFK_BUCKET    = "aw-watcher-afk_{}".format(HOSTNAME)
+WINDOW_BUCKET = f"aw-watcher-window_{HOSTNAME}"
+AFK_BUCKET = f"aw-watcher-afk_{HOSTNAME}"
 
-print(f"Detected hostname: {HOSTNAME}")
-print(f"Window bucket : {WINDOW_BUCKET}")
-
+# Global client and cache
+client = ActivityWatchClient("meeting-focus-client", testing=False)
 CATEGORIZATION_CACHE = {}
 
 def get_meeting_events(start: datetime, end: datetime) -> list[Event]:
@@ -34,7 +27,7 @@ def get_meeting_events(start: datetime, end: datetime) -> list[Event]:
 def categorize_window_event(event: Event) -> str:
     """Categorize using local Ollama LLM (e.g., llama3 model)"""
     data = event.data
-    app  = data.get("app",  "").lower()
+    app = data.get("app", "").lower()
     title = data.get("title", "").lower()
     
     cache_key = (app, title)
@@ -87,7 +80,7 @@ def compute_overlap(event_start, event_end, bin_start, bin_end):
 
 def analyze_meeting(start_iso: str, end_iso: str):
     start = datetime.fromisoformat(start_iso).astimezone(timezone.utc)
-    end   = datetime.fromisoformat(end_iso).astimezone(timezone.utc)
+    end = datetime.fromisoformat(end_iso).astimezone(timezone.utc)
     
     events = get_meeting_events(start, end)
     if not events:
@@ -172,130 +165,4 @@ def analyze_meeting(start_iso: str, end_iso: str):
     engaged_duration = category_durations['meeting'] + category_durations['work_related']
     engagement_pct = round(engaged_duration / total_duration_sec * 100, 1) if total_duration_sec > 0 else 0.0
     
-    return total_duration_sec, engagement_pct, category_durations, event_details, avg_focus_sec, interval_data
-
-def show_stats_result(total_sec: float, engagement_pct: float, durations: dict, event_details: list, avg_focus_sec: float, interval_data: list):
-    root = tk.Tk()
-    root.title("Meeting Focus Summary")
-    root.geometry("1500x1200")     
-    root.configure(bg="#f0f0f0")
-    
-    # Header with overall stats
-    header_frame = tk.Frame(root, bg="#f0f0f0")
-    header_frame.pack(pady=15, padx=20, fill='x')
-    
-    tk.Label(header_frame, 
-             text=f"Overall Engagement: {engagement_pct}%   |   Avg Focus Streak: {avg_focus_sec/60:.1f} min",
-             font=("Helvetica", 15, "bold"), 
-             bg="#f0f0f0", 
-             fg="#2c3e50").pack()
-    
-    tk.Label(root, 
-             text="5-Minute Activity Timeline",
-             font=("Helvetica", 14, "bold"),
-             bg="#f0f0f0",
-             fg="#1a3c5e").pack(pady=(20, 5))
-    
-    frame_tree = tk.Frame(root, bg="#f0f0f0")
-    frame_tree.pack(pady=5, padx=25, fill='both', expand=True)
-    
-    y_scroll = ttk.Scrollbar(frame_tree, orient='vertical')
-    y_scroll.pack(side='right', fill='y')
-    
-    x_scroll = ttk.Scrollbar(frame_tree, orient='horizontal')
-    x_scroll.pack(side='bottom', fill='x')
-    
-    tree = ttk.Treeview(frame_tree, 
-                        columns=('Time', 'Application', 'Title', 'Category'), 
-                        show='headings', 
-                        height=10,                    
-                        yscrollcommand=y_scroll.set,
-                        xscrollcommand=x_scroll.set)
-    
-    y_scroll.config(command=tree.yview)
-    x_scroll.config(command=tree.xview)
-    
-    # Headings
-    tree.heading('Time', text='Time (HKT)')
-    tree.heading('Application', text='Application')
-    tree.heading('Title', text='Window Title')
-    tree.heading('Category', text='Category')
-    
-
-    tree.column('Time', width=110, anchor='center', minwidth=90)
-    tree.column('Application', width=380, anchor='w', minwidth=200)
-    tree.column('Title', width=400, anchor='w')
-    tree.column('Category', width=180, anchor='center', minwidth=120)
-    
-    style = ttk.Style()
-    style.configure("Treeview", 
-                    font=("Helvetica", 11),       
-                    rowheight=28)                 
-    style.configure("Treeview.Heading", 
-                    font=("Helvetica", 12, "bold"),
-                    padding=(5, 5))
-    
-
-    tree.tag_configure('meeting', background="#e8f5e9", foreground="#1b5e20")
-    tree.tag_configure('work_related', background="#e3f2fd", foreground="#0d47a1")
-    tree.tag_configure('distraction', background="#ffebee", foreground="#b71c1c")
-    tree.tag_configure('other', background="#f5f5f5", foreground="#424242")
-    
-    cat_display_map = {
-        'meeting': 'Meeting',
-        'work_related': 'Work',
-        'distraction': 'Distraction',
-        'other': 'Other'
-    }
-    
-
-    for item in interval_data:
-        time_str = item['time']
-        app_raw = item['app']
-        cat = item['category']
-        cat_display = cat_display_map.get(cat, 'Other')
-        
-        # Cleaner app name
-        app_clean = app_raw.split("\\")[-1].split("/")[-1].split(".")[0]
-        app_clean = app_clean.title() if app_clean else "Unknown"
-        
-        tree.insert('', 'end', 
-                   values=(time_str, app_clean, item['title'], cat_display),
-                   tags=(cat,))
-    
-    tree.pack(side='left', fill='both', expand=True)
-    
-    if durations:
-        fig_pie = Figure(figsize=(4.5, 3.5), dpi=100, facecolor='#f0f0f0')
-        ax_pie = fig_pie.add_subplot(111)
-        labels = [cat_display_map.get(k, k.capitalize()) for k in durations.keys()]
-        sizes = list(durations.values())
-        colors = ['#66bb6a', '#42a5f5', '#ef5350', '#bdbdbd'][:len(labels)]
-        
-        ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90,
-                   colors=colors, textprops={'fontsize': 11})
-        ax_pie.axis('equal')
-        ax_pie.set_title('Overall Activity Breakdown', fontsize=13, pad=15)
-        
-        canvas_pie = FigureCanvasTkAgg(fig_pie, master=root)
-        canvas_pie.draw()
-        canvas_pie.get_tk_widget().pack(pady=20)
-    
-    tk.Label(root, 
-             text="Green = Meeting • Blue = Work • Red = Distraction • Gray = Other",
-             font=("Helvetica", 10),
-             bg="#f0f0f0", 
-             fg="#555").pack(pady=(5, 20))
-    
-    root.mainloop()
-
-if __name__ == "__main__":
-    now = datetime.now(timezone.utc)
-    start = now - timedelta(minutes=30)
-    
-    total_sec, engagement, cat_durations, event_details, avg_focus_sec, interval_data = analyze_meeting(start.isoformat(), now.isoformat())
-    
-    if total_sec is not None:
-        show_stats_result(total_sec, engagement, cat_durations, event_details, avg_focus_sec, interval_data)
-    else:
-        print("No data to display.")
+    return total_duration_sec, engagement_pct, dict(category_durations), event_details, avg_focus_sec, interval_data
