@@ -36,22 +36,27 @@ def categorize_window_event(event: Event) -> str:
         You are categorizing the currently active window during work or meeting time.
 
         Categorize it as **exactly one** of these four options:
-        - 'meeting'     → video calls, online meetings, conferencing apps
-        - 'work_related' → any productivity, coding, documents, work email, work browser tabs
-        - 'distraction' → entertainment, social media, videos, games, shopping, non-work browsing
+        - 'meeting'     → video calls, online meetings, conferencing apps (Zoom, Teams, Meet, etc.)
+        - 'work_related' → any productivity, coding, documents, work email, work browser tabs, IDEs, code editors
+        - 'distraction' → entertainment, social media, videos, games, shopping, non-work browsing  
         - 'other'       → everything else (system windows, idle, unknown, etc.)
 
+        **Important Rules:**
+        - Code editors (VS Code, IntelliJ, etc.) and development files should ALWAYS be 'work_related'
+        - The word "meeting" in a filename or project name does NOT make it a meeting app
+        - Only actual video conferencing/meeting apps should be 'meeting'
+
         Strong indicators for 'meeting':
-        - App names containing: zoom, teams, meet, webex, slack huddle, discord (when in call), facetime, skype
-        - Window titles containing: meeting, call, zoom, teams, meet, conference, huddle, video call, join, host, share screen, "with ", " - meeting", "Zoom Meeting", "Microsoft Teams meeting"
+        - App names: zoom, teams, meet, webex, slack huddle, discord (when in call), facetime, skype, google meet, zoom.us
+        - Window titles with meeting context: "Zoom Meeting", "Microsoft Teams meeting", "Join Meeting", "Video Call with", "Conference Room"
 
         Examples:
-        App: zoom.us           Title: Zoom Meeting with Team X         → meeting
-        App: Zoom.exe          Title: Meeting - Project Sync            → meeting
-        App: zoom              Title: Zoom - John Doe                   → meeting
-        App: Teams             Title: Microsoft Teams | Daily Standup   → meeting
-        App: Google Chrome     Title: UX on Sean - Trello               → work_related
-        App: chrome            Title: YouTube - funny cat video         → distraction
+        App: Code              Title: FocusTimeLine.tsx — meeting-focus-tracker    → work_related
+        App: Visual Studio Code Title: my-project/src/components/Meeting.js        → work_related  
+        App: zoom.us           Title: Zoom Meeting with Team X                    → meeting
+        App: Teams             Title: Microsoft Teams | Daily Standup            → meeting
+        App: Google Chrome     Title: UX on Sean - Trello                        → work_related
+        App: chrome            Title: YouTube - funny cat video                  → distraction
 
         App name: {app}
         Window title: {title}
