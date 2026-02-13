@@ -28,6 +28,8 @@ export const analyzeMeeting = async (
   request: MeetingRequest,
 ): Promise<MeetingData> => {
   try {
+    console.log("Sending request to backend:", request);
+
     const response = await fetch(`${API_BASE_URL}/analyze-meeting`, {
       method: "POST",
       headers: {
@@ -36,11 +38,23 @@ export const analyzeMeeting = async (
       body: JSON.stringify(request),
     });
 
+    console.log("Response status:", response.status);
+    console.log(
+      "Response headers:",
+      Object.fromEntries(response.headers.entries()),
+    );
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error("Backend error response:", errorText);
+      throw new Error(
+        `HTTP error! status: ${response.status}, message: ${errorText}`,
+      );
     }
 
-    return await response.json();
+    const data = await response.json();
+    console.log("Received data from backend:", data);
+    return data;
   } catch (error) {
     console.error("Error analyzing meeting:", error);
     throw error;
@@ -50,6 +64,11 @@ export const analyzeMeeting = async (
 export const analyzeLastHour = async (): Promise<MeetingData> => {
   const now = new Date();
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+  console.log("Analyzing last hour:", {
+    start_time: oneHourAgo.toISOString(),
+    end_time: now.toISOString(),
+  });
 
   return analyzeMeeting({
     start_time: oneHourAgo.toISOString(),

@@ -3,10 +3,20 @@ from pydantic import BaseModel
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 import json
+from fastapi.middleware.cors import CORSMiddleware 
 
 from analyzer import analyze_meeting  
-
 app = FastAPI(title="Meeting Focus Tracker API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  
+    allow_credentials=True,
+    allow_methods=["*"],  
+    allow_headers=["*"],  
+)
+
+
 
 class MeetingRequest(BaseModel):
     start_time: str  

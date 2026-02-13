@@ -1,7 +1,7 @@
 export interface ActivitySegment {
   app: string;
   category: "meeting" | "media" | "dev" | "office" | "social" | "other";
-  startMin: number; // minutes from meeting start (0-60)
+  startMin: number; 
   endMin: number;
   emoji: string;
 }
@@ -13,9 +13,6 @@ export interface Participant {
   segments: ActivitySegment[];
 }
 
-export const MEETING_START = "13:00";
-export const MEETING_END = "14:00";
-export const MEETING_DURATION = 60;
 
 export const participants: Participant[] = [
   {
@@ -79,9 +76,9 @@ export function getCategoryLabel(category: ActivitySegment["category"]): string 
   }
 }
 
-export function getFocusPercentage(p: Participant): number {
-  const meetingMins = p.segments
-    .filter(s => s.category === "meeting")
-    .reduce((sum, s) => sum + (s.endMin - s.startMin), 0);
-  return Math.round((meetingMins / MEETING_DURATION) * 100);
-}
+// export function getFocusPercentage(p: Participant): number {
+//   const meetingMins = p.segments
+//     .filter(s => s.category === "meeting")
+//     .reduce((sum, s) => sum + (s.endMin - s.startMin), 0);
+//   return Math.round((meetingMins / MEETING_DURATION) * 100);
+// }

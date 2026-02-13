@@ -1,7 +1,27 @@
 import { motion } from "framer-motion";
 import { Target, Users, Clock } from "lucide-react";
 
-const MeetingHeader = () => {
+interface MeetingHeaderProps {
+  duration?: number;
+  participants?: number;
+}
+
+const MeetingHeader = ({
+  duration = 60,
+  participants = 4,
+}: MeetingHeaderProps) => {
+  const startTime = new Date();
+  startTime.setHours(startTime.getHours() - Math.floor(duration / 60));
+  const endTime = new Date();
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   return (
     <motion.header
       initial={{ opacity: 0, y: -20 }}
@@ -21,9 +41,11 @@ const MeetingHeader = () => {
           />
         </div>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Meeting Focus Tracker</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Meeting Focus Tracker
+          </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Gentle insights, not judgments 💛
+            Detection for Meeting Focus
           </p>
         </div>
       </div>
@@ -31,11 +53,10 @@ const MeetingHeader = () => {
       <div className="flex items-center gap-6 text-sm text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <Clock className="h-3.5 w-3.5" />
-          13:00 – 14:00
+          {formatTime(startTime)} – {formatTime(endTime)}
         </span>
         <span className="flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5" />
-          4 participants
+          <Users className="h-3.5 w-3.5" /> {participants} participants
         </span>
       </div>
     </motion.header>

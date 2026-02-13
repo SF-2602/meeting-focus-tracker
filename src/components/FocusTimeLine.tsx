@@ -5,19 +5,101 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "./ui/tooltip";
-import {
-  participants,
-  getCategoryColor,
-  MEETING_DURATION,
-  type ActivitySegment,
-} from "../data/meetingData";
 
-const timeLabels = Array.from({ length: 13 }, (_, i) => {
-  const min = i * 5;
-  const h = 13 + Math.floor(min / 60);
-  const m = min % 60;
-  return `${h}:${m.toString().padStart(2, "0")}`;
-});
+interface ActivitySegment {
+  startMin: number;
+  endMin: number;
+  app: string;
+  category: string;
+  emoji: string;
+}
+
+interface Participant {
+  name: string;
+  avatar: string;
+  improved: boolean;
+  segments: ActivitySegment[];
+}
+
+interface FocusTimelineProps {
+  intervalData: Array<{
+    time: string;
+    category: string;
+    app: string;
+    title: string;
+    engaged_pct: number;
+  }>;
+  meetingStartTime?: string;
+}
+
+const MEETING_DURATION = 60;
+
+const getCategoryColor = (category: string) => {
+  switch (category) {
+    case "meeting":
+      return "bg-focus-green";
+    case "work_related":
+      return "bg-focus-blue";
+    case "distraction":
+      return "bg-focus-red";
+    case "other":
+      return "bg-muted";
+    default:
+      return "bg-muted-foreground";
+  }
+};
+
+const getCategoryEmoji = (category: string) => {
+  switch (category) {
+    case "meeting":
+      return "📹";
+    case "work_related":
+      return "💻";
+    case "distraction":
+      return "🎮";
+    case "other":
+      return "📄";
+    default:
+      return "❓";
+  }
+};
+
+const convertIntervalDataToSegments = (
+  intervalData: FocusTimelineProps["intervalData"],
+  meetingStartTime?: string,
+): ActivitySegment[] => {
+  if (!intervalData.length) return [];
+
+  let baseHour = 13;
+  let baseMinute = 0;
+
+  if (meetingStartTime) {
+    const startTime = new Date(meetingStartTime);
+    baseHour = startTime.getHours();
+    baseMinute = startTime.getMinutes();
+  } else if (intervalData[0].time.includes(":")) {
+    const [hourStr, minuteStr] = intervalData[0].time.split(":");
+    baseHour = parseInt(hourStr);
+    baseMinute = parseInt(minuteStr);
+  }
+
+  return intervalData.map((item, index) => {
+    const [hourStr, minuteStr] = item.time.split(":");
+    const itemHour = parseInt(hourStr);
+    const itemMinute = parseInt(minuteStr);
+
+    const startMin = (itemHour - baseHour) * 60 + (itemMinute - baseMinute);
+    const endMin = startMin + 5;
+
+    return {
+      startMin,
+      endMin,
+      app: item.app,
+      category: item.category,
+      emoji: getCategoryEmoji(item.category),
+    };
+  });
+};
 
 const isMeetingApp = (seg: ActivitySegment) => seg.category === "meeting";
 
@@ -35,9 +117,10 @@ const SegmentBar = ({
   const left = (seg.startMin / MEETING_DURATION) * 100;
   const width = ((seg.endMin - seg.startMin) / MEETING_DURATION) * 100;
   const duration = seg.endMin - seg.startMin;
-  const startH = 13 + Math.floor(seg.startMin / 60);
+
+  const startH = Math.floor(seg.startMin / 60) + 13;
   const startM = seg.startMin % 60;
-  const endH = 13 + Math.floor(seg.endMin / 60);
+  const endH = Math.floor(seg.endMin / 60) + 13;
   const endM = seg.endMin % 60;
 
   return (
@@ -73,124 +156,188 @@ const SegmentBar = ({
   );
 };
 
-const FocusTimeline = () => {
+const generateTimeLabels = (
+  intervalData: FocusTimelineProps["intervalData"],
+) => {
+  if (!intervalData.length) {
+    return Array.from({ length: 13 }, (_, i) => {
+      const min = i * 5;
+      const h = 13 + Math.floor(min / 60);
+      const m = min % 60;
+      return `${h}:${m.toString().padStart(2, "0")}`;
+    });
+  }
+
+  return intervalData.map((item) => item.time);
+};
+
+const FocusTimeline = ({
+  intervalData,
+  meetingStartTime,
+}: FocusTimelineProps) => {
+  const currentUserSegments = convertIntervalDataToSegments(
+    intervalData,
+    meetingStartTime,
+  );
+
+  const mockParticipants: Participant[] = [
+    { name: "You", avatar: "Y", improved: true, segments: currentUserSegments },
+    {
+      name: "Alex",
+      avatar: "A",
+      improved: false,
+      segments: currentUserSegments.map((seg) => ({
+        ...seg,
+        category: "work_related",
+        emoji: getCategoryEmoji("work_related"),
+      })),
+    },
+    {
+      name: "Sam",
+      avatar: "S",
+      improved: false,
+      segments: currentUserSegments.map((seg) => ({
+        ...seg,
+        category: Math.random() > 0.7 ? "distraction" : "meeting",
+        emoji: getCategoryEmoji(
+          Math.random() > 0.7 ? "distraction" : "meeting",
+        ),
+      })),
+    },
+    {
+      name: "Taylor",
+      avatar: "T",
+      improved: true,
+      segments: currentUserSegments.map((seg) => ({
+        ...seg,
+        category: "meeting",
+        emoji: getCategoryEmoji("meeting"),
+      })),
+    },
+  ];
+
+  const timeLabels = generateTimeLabels(intervalData);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.2 }}
-      className="glass-card rounded-2xl p-6 mb-6"
-    >
-      <h2 className="text-lg font-semibold mb-4">Focus Timeline</h2>
+    <TooltipProvider>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="glass-card rounded-2xl p-6 mb-6"
+      >
+        <h2 className="text-lg font-semibold mb-4">Focus Timeline</h2>
 
-      {/* Column headers */}
-      <div className="flex mb-1">
-        <div className="w-32 shrink-0" />
-        <div className="w-16 shrink-0" />
-        <div className="flex-1 relative h-5">
-          {timeLabels.map((label, i) => (
-            <span
-              key={label}
-              className="absolute text-[10px] text-muted-foreground -translate-x-1/2"
-              style={{ left: `${((i * 5) / MEETING_DURATION) * 100}%` }}
-            >
-              {label}
-            </span>
-          ))}
+        {/* Column headers */}
+        <div className="flex mb-1">
+          <div className="w-32 shrink-0" />
+          <div className="w-16 shrink-0" />
+          <div className="flex-1 relative h-5">
+            {timeLabels.map((label, i) => (
+              <span
+                key={label}
+                className="absolute text-[10px] text-muted-foreground -translate-x-1/2"
+                style={{ left: `${i * (100 / timeLabels.length)}%` }}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Participant rows */}
-      <div className="space-y-3">
-        {participants.map((p, pIdx) => {
-          const meetingSegs = p.segments.filter(isMeetingApp);
-          const otherSegs = p.segments.filter((s) => !isMeetingApp(s));
+        {/* Rest of your component remains the same... */}
 
-          return (
-            <motion.div
-              key={p.name}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 + pIdx * 0.1 }}
-              className="flex items-center"
-            >
-              {/* Name + avatar */}
-              <div className="w-32 shrink-0 flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
-                  {p.avatar}
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-sm font-medium">{p.name}</span>
-                  {p.improved && (
-                    <span
-                      className="text-xs"
-                      title="Improved since last meeting"
-                    >
-                      🌱
-                    </span>
-                  )}
-                </div>
-              </div>
+        {/* Participant rows */}
+        <div className="space-y-3">
+          {mockParticipants.map((p, pIdx) => {
+            const meetingSegs = p.segments.filter(isMeetingApp);
+            const otherSegs = p.segments.filter((s) => !isMeetingApp(s));
 
-              {/* Two-lane timeline */}
-              <div className="flex-1 flex flex-col gap-0.5">
-                {/* Lane 1: Meeting */}
-                <div className="flex items-center">
-                  <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-2">
-                    Meeting
+            return (
+              <motion.div
+                key={p.name}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 + pIdx * 0.1 }}
+                className="flex items-center"
+              >
+                {/* Name + avatar */}
+                <div className="w-32 shrink-0 flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
+                    {p.avatar}
                   </div>
-                  <div className="flex-1 relative h-7 bg-focus-green/10 rounded-md overflow-hidden">
-                    {meetingSegs.map((seg, sIdx) => (
-                      <SegmentBar
-                        key={sIdx}
-                        seg={seg}
-                        pIdx={pIdx}
-                        sIdx={sIdx}
-                        participantName={p.name}
-                      />
-                    ))}
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-medium">{p.name}</span>
+                    {p.improved && (
+                      <span
+                        className="text-xs"
+                        title="Improved since last meeting"
+                      >
+                        🌱
+                      </span>
+                    )}
                   </div>
                 </div>
-                {/* Lane 2: Other */}
-                <div className="flex items-center">
-                  <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-2">
-                    Other
+
+                {/* Two-lane timeline */}
+                <div className="flex-1 flex flex-col gap-0.5">
+                  {/* Lane 1: Meeting */}
+                  <div className="flex items-center">
+                    <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-2">
+                      Meeting
+                    </div>
+                    <div className="flex-1 relative h-7 bg-focus-green/10 rounded-md overflow-hidden">
+                      {meetingSegs.map((seg, sIdx) => (
+                        <SegmentBar
+                          key={`${pIdx}-meeting-${sIdx}`}
+                          seg={seg}
+                          pIdx={pIdx}
+                          sIdx={sIdx}
+                          participantName={p.name}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex-1 relative h-7 bg-muted/50 rounded-md overflow-hidden">
-                    {otherSegs.map((seg, sIdx) => (
-                      <SegmentBar
-                        key={sIdx}
-                        seg={seg}
-                        pIdx={pIdx}
-                        sIdx={sIdx + meetingSegs.length}
-                        participantName={p.name}
-                      />
-                    ))}
+                  {/* Lane 2: Other */}
+                  <div className="flex items-center">
+                    <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-2">
+                      Other
+                    </div>
+                    <div className="flex-1 relative h-7 bg-muted/50 rounded-md overflow-hidden">
+                      {otherSegs.map((seg, sIdx) => (
+                        <SegmentBar
+                          key={`${pIdx}-other-${sIdx}`}
+                          seg={seg}
+                          pIdx={pIdx}
+                          sIdx={sIdx + meetingSegs.length}
+                          participantName={p.name}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+              </motion.div>
+            );
+          })}
+        </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 mt-5 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-focus-green" /> Meeting App
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-focus-red" /> Media /
-          Social
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-focus-purple" /> Dev Tools
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-focus-blue" /> Office Apps
-        </span>
-      </div>
-    </motion.div>
+        {/* Legend */}
+        <div className="flex flex-wrap gap-4 mt-5 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-focus-green" /> Meeting
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-focus-red" /> Distraction
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-focus-blue" /> Work
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-muted" /> Other
+          </span>
+        </div>
+      </motion.div>
+    </TooltipProvider>
   );
 };
 

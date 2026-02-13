@@ -5,12 +5,10 @@ from datetime import datetime, timedelta, timezone
 import ollama  
 from collections import defaultdict
 
-# Constants
 HOSTNAME = socket.gethostname()
 WINDOW_BUCKET = f"aw-watcher-window_{HOSTNAME}"
 AFK_BUCKET = f"aw-watcher-afk_{HOSTNAME}"
 
-# Global client and cache
 client = ActivityWatchClient("meeting-focus-client", testing=False)
 CATEGORIZATION_CACHE = {}
 
