@@ -273,7 +273,7 @@ const FocusTimeline = ({
                         className="text-xs"
                         title="Improved since last meeting"
                       >
-                        🌱
+                        🏆
                       </span>
                     )}
                   </div>
