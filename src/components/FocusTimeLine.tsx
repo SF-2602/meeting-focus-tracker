@@ -5,13 +5,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "./ui/tooltip";
+import { getAppIconUrl } from "../utils/getAppIcon";
 
 interface ActivitySegment {
   startMin: number;
   endMin: number;
   app: string;
   category: string;
-  emoji: string;
+  iconUrl: string | null;
 }
 
 interface Participant {
@@ -49,14 +50,14 @@ const getCategoryColor = (category: string) => {
   }
 };
 
-const getCategoryEmoji = (category: string) => {
+const getCategoryFallbackIcon = (category: string) => {
   switch (category) {
     case "meeting":
       return "📹";
     case "work_related":
       return "💻";
     case "distraction":
-      return "🎮";
+      return "📱";
     case "other":
       return "📄";
     default:
@@ -83,7 +84,7 @@ const convertIntervalDataToSegments = (
     baseMinute = parseInt(minuteStr);
   }
 
-  return intervalData.map((item, index) => {
+  return intervalData.map((item) => {
     const [hourStr, minuteStr] = item.time.split(":");
     const itemHour = parseInt(hourStr);
     const itemMinute = parseInt(minuteStr);
@@ -91,12 +92,14 @@ const convertIntervalDataToSegments = (
     const startMin = (itemHour - baseHour) * 60 + (itemMinute - baseMinute);
     const endMin = startMin + 5;
 
+    const iconUrl = getAppIconUrl(item.app);
+
     return {
       startMin,
       endMin,
       app: item.app,
       category: item.category,
-      emoji: getCategoryEmoji(item.category),
+      iconUrl,
     };
   });
 };
@@ -138,7 +141,22 @@ const SegmentBar = ({
           style={{ left: `${left}%`, width: `${width}%` }}
         >
           <span className="text-[11px] font-medium text-white truncate px-2 flex items-center gap-1">
-            <span>{seg.emoji}</span>
+            {seg.iconUrl ? (
+              <img
+                src={seg.iconUrl}
+                alt={seg.app}
+                className="w-3 h-3"
+                style={{
+                  filter: "brightness(0) invert(1)",
+                  viewTransitionName: "icon",
+                }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+            ) : (
+              <span>{getCategoryFallbackIcon(seg.category)}</span>
+            )}
             {width > 12 && <span>{seg.app}</span>}
           </span>
         </motion.div>
@@ -181,38 +199,11 @@ const FocusTimeline = ({
   );
 
   const mockParticipants: Participant[] = [
-    { name: "You", avatar: "Y", improved: true, segments: currentUserSegments },
     {
-      name: "Alex",
-      avatar: "A",
+      name: "You",
+      avatar: "Y",
       improved: false,
-      segments: currentUserSegments.map((seg) => ({
-        ...seg,
-        category: "work_related",
-        emoji: getCategoryEmoji("work_related"),
-      })),
-    },
-    {
-      name: "Sam",
-      avatar: "S",
-      improved: false,
-      segments: currentUserSegments.map((seg) => ({
-        ...seg,
-        category: Math.random() > 0.7 ? "distraction" : "meeting",
-        emoji: getCategoryEmoji(
-          Math.random() > 0.7 ? "distraction" : "meeting",
-        ),
-      })),
-    },
-    {
-      name: "Taylor",
-      avatar: "T",
-      improved: true,
-      segments: currentUserSegments.map((seg) => ({
-        ...seg,
-        category: "meeting",
-        emoji: getCategoryEmoji("meeting"),
-      })),
+      segments: currentUserSegments,
     },
   ];
 
