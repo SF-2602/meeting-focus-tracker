@@ -38,9 +38,9 @@ const MEETING_DURATION = 60;
 const getCategoryColor = (category: string) => {
   switch (category) {
     case "meeting":
-      return "bg-focus-green";
-    case "work_related":
       return "bg-focus-blue";
+    case "work_related":
+      return "bg-focus-purple";
     case "distraction":
       return "bg-focus-red";
     case "other":
@@ -63,6 +63,34 @@ const getCategoryFallbackIcon = (category: string) => {
     default:
       return "❓";
   }
+};
+
+const mergeAdjacentSegments = (
+  segments: ActivitySegment[],
+): ActivitySegment[] => {
+  if (segments.length === 0) return [];
+
+  const merged: ActivitySegment[] = [];
+  let current = { ...segments[0] };
+
+  for (let i = 1; i < segments.length; i++) {
+    const next = segments[i];
+
+    if (
+      current.app === next.app &&
+      current.category === next.category &&
+      current.endMin === next.startMin
+    ) {
+      // Extend the current segment
+      current.endMin = next.endMin;
+    } else {
+      merged.push(current);
+      current = { ...next };
+    }
+  }
+
+  merged.push(current);
+  return merged;
 };
 
 const convertIntervalDataToSegments = (
@@ -145,7 +173,7 @@ const SegmentBar = ({
               <img
                 src={seg.iconUrl}
                 alt={seg.app}
-                className="w-3 h-3"
+                className="w-4 h-4"
                 style={{
                   filter: "brightness(0) invert(1)",
                   viewTransitionName: "icon",
@@ -236,13 +264,14 @@ const FocusTimeline = ({
           </div>
         </div>
 
-        {/* Rest of your component remains the same... */}
-
-        {/* Participant rows */}
         <div className="space-y-3">
           {mockParticipants.map((p, pIdx) => {
-            const meetingSegs = p.segments.filter(isMeetingApp);
-            const otherSegs = p.segments.filter((s) => !isMeetingApp(s));
+            // First, merge all segments for this participant
+            const mergedSegments = mergeAdjacentSegments(p.segments);
+
+            // Then split into lanes
+            const meetingSegs = mergedSegments.filter(isMeetingApp);
+            const otherSegs = mergedSegments.filter((s) => !isMeetingApp(s));
 
             return (
               <motion.div
@@ -270,7 +299,6 @@ const FocusTimeline = ({
                   </div>
                 </div>
 
-                {/* Two-lane timeline */}
                 <div className="flex-1 flex flex-col gap-0.5">
                   {/* Lane 1: Meeting */}
                   <div className="flex items-center">
