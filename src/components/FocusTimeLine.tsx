@@ -13,6 +13,8 @@ interface ActivitySegment {
   app: string;
   category: string;
   iconUrl: string | null;
+  baseHour: number;
+  baseMinute: number;
 }
 
 interface Participant {
@@ -99,8 +101,11 @@ const convertIntervalDataToSegments = (
 ): ActivitySegment[] => {
   if (!intervalData.length) return [];
 
-  let baseHour = 13;
-  let baseMinute = 0;
+  // let baseHour = parseInt(intervalData[0].time.split(":")[0]);
+  // let baseMinute = parseInt(intervalData[0].time.split(":")[1]);
+
+  let baseHour: number;
+  let baseMinute: number;
 
   if (meetingStartTime) {
     const startTime = new Date(meetingStartTime);
@@ -128,6 +133,8 @@ const convertIntervalDataToSegments = (
       app: item.app,
       category: item.category,
       iconUrl,
+      baseHour,
+      baseMinute,
     };
   });
 };
@@ -149,10 +156,13 @@ const SegmentBar = ({
   const width = ((seg.endMin - seg.startMin) / MEETING_DURATION) * 100;
   const duration = seg.endMin - seg.startMin;
 
-  const startH = Math.floor(seg.startMin / 60) + 13;
-  const startM = seg.startMin % 60;
-  const endH = Math.floor(seg.endMin / 60) + 13;
-  const endM = seg.endMin % 60;
+  const startTotalMinutes = seg.baseHour * 60 + seg.baseMinute + seg.startMin;
+  const endTotalMinutes = seg.baseHour * 60 + seg.baseMinute + seg.endMin;
+
+  const startH = Math.floor(startTotalMinutes / 60) % 24;
+  const startM = startTotalMinutes % 60;
+  const endH = Math.floor(endTotalMinutes / 60) % 24;
+  const endM = endTotalMinutes % 60;
 
   return (
     <Tooltip>

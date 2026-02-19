@@ -123,13 +123,22 @@ def analyze_meeting(start_iso: str, end_iso: str):
         focus_dur = (end - current_focus_start).total_seconds()
         focus_durs.append(focus_dur)
     
+    start_rounded = start.replace(
+        minute=(start.minute // 5) * 5,
+        second=0,
+        microsecond=0
+    )
+    
     avg_focus_sec = sum(focus_durs) / len(focus_durs) if focus_durs else 0
     
     interval_data = [] 
-    current_bin = start
+    current_bin = start_rounded
     while current_bin < end:
         bin_end = min(current_bin + timedelta(minutes=5), end)
         bin_total_sec = (bin_end - current_bin).total_seconds()
+
+        if bin_total_sec <= 0:
+            break
 
         bin_category_durations = defaultdict(float)
         dominant_app = "Unknown"
