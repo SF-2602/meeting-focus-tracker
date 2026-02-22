@@ -45,6 +45,8 @@ const getCategoryColor = (category: string) => {
       return "bg-focus-purple";
     case "distraction":
       return "bg-focus-red";
+    case "browser":
+      return "bg-focus-amber";
     case "other":
       return "bg-muted";
     default:
@@ -60,6 +62,8 @@ const getCategoryFallbackIcon = (category: string) => {
       return "💻";
     case "distraction":
       return "📱";
+    case "browser":
+      return "🔎";
     case "other":
       return "📄";
     default:
@@ -111,10 +115,13 @@ const convertIntervalDataToSegments = (
     const startTime = new Date(meetingStartTime);
     baseHour = startTime.getHours();
     baseMinute = startTime.getMinutes();
-  } else if (intervalData[0].time.includes(":")) {
+  } else if (intervalData[0]?.time?.includes(":")) {
     const [hourStr, minuteStr] = intervalData[0].time.split(":");
-    baseHour = parseInt(hourStr);
-    baseMinute = parseInt(minuteStr);
+    baseHour = parseInt(hourStr, 10);
+    baseMinute = parseInt(minuteStr, 10);
+  } else {
+    baseHour = 0;
+    baseMinute = 0;
   }
 
   return intervalData.map((item) => {
@@ -315,7 +322,9 @@ const FocusTimeline = ({
                     <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-2">
                       Meeting
                     </div>
-                    <div className="flex-1 relative h-7 bg-focus-green/10 rounded-md overflow-hidden">
+                    <div className="flex-1 relative h-7 bg-focus-blue/10 rounded-md overflow-hidden">
+                      {" "}
+                      {/* Changed from bg-focus-green/10 */}
                       {meetingSegs.map((seg, sIdx) => (
                         <SegmentBar
                           key={`${pIdx}-meeting-${sIdx}`}
@@ -350,16 +359,18 @@ const FocusTimeline = ({
           })}
         </div>
 
-        {/* Legend */}
         <div className="flex flex-wrap gap-4 mt-5 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-focus-green" /> Meeting
+            <span className="h-2.5 w-2.5 rounded-sm bg-focus-blue" /> Meeting
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-focus-purple" /> Work
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-focus-amber" /> Browser
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm bg-focus-red" /> Distraction
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-focus-blue" /> Work
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm bg-muted" /> Other

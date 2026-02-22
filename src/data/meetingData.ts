@@ -14,46 +14,6 @@ export interface Participant {
 }
 
 
-export const participants: Participant[] = [
-  {
-    name: "Sean",
-    avatar: "S",
-    improved: true,
-    segments: [
-      { app: "Zoom Meeting", category: "meeting", startMin: 0, endMin: 60, emoji: "📹" },
-    ],
-  },
-  {
-    name: "Max",
-    avatar: "M",
-    improved: false,
-    segments: [
-      { app: "YouTube", category: "media", startMin: 5, endMin: 18, emoji: "🎥" },
-      { app: "Zoom Meeting", category: "meeting", startMin: 18, endMin: 45, emoji: "📹" },
-      { app: "Visual Studio Code", category: "dev", startMin: 48, endMin: 60, emoji: "💻" },
-    ],
-  },
-  {
-    name: "Marvel",
-    avatar: "V",
-    improved: false,
-    segments: [
-      { app: "Zoom Meeting", category: "meeting", startMin: 3, endMin: 30, emoji: "📹" },
-      { app: "Instagram", category: "social", startMin: 30, endMin: 55, emoji: "📱" },
-    ],
-  },
-  {
-    name: "Jovan",
-    avatar: "J",
-    improved: true,
-    segments: [
-      { app: "Zoom Meeting", category: "meeting", startMin: 5, endMin: 35, emoji: "📹" },
-      { app: "Microsoft Word", category: "office", startMin: 35, endMin: 42, emoji: "📝" },
-      { app: "Zoom Meeting", category: "meeting", startMin: 45, endMin: 60, emoji: "📹" },
-    ],
-  },
-];
-
 export function getCategoryColor(category: ActivitySegment["category"]): string {
   switch (category) {
     case "meeting": return "bg-focus-green";

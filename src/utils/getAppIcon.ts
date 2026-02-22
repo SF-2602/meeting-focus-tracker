@@ -1,4 +1,3 @@
-// utils/getAppIcon.ts
 const SIMPLE_ICONS_MAP: Record<string, string> = {
   whatsapp: "whatsapp",
   telegram: "telegram",

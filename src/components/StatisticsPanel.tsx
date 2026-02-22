@@ -17,6 +17,7 @@ interface MeetingData {
   engagement_percentage: number;
   category_durations: {
     meeting?: number;
+    browser?: number;
     work_related?: number;
     distraction?: number;
     other?: number;
@@ -35,8 +36,6 @@ interface StatisticsPanelProps {
   meetingData: MeetingData;
 }
 
-const DONUT_COLORS = ["hsl(122, 39%, 49%)", "hsl(40, 15%, 88%)"];
-
 const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
   const {
     category_durations,
@@ -45,17 +44,6 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
     total_duration_sec,
   } = meetingData;
 
-  // Calculate focused count based on engagement percentage
-  const focusedCount = engagement_percentage >= 70 ? 3 : 2; // You can adjust this logic
-  const totalParticipants = 4;
-
-  // Prepare donut chart data
-  const donutData = [
-    { name: "Focused", value: focusedCount },
-    { name: "Drifting", value: totalParticipants - focusedCount },
-  ];
-
-  // Prepare category data for bar chart
   const categoryData = [];
 
   if (category_durations.meeting) {
@@ -64,7 +52,17 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
       value: Math.round(
         (category_durations.meeting / total_duration_sec) * 100,
       ),
-      fill: "hsl(122, 39%, 49%)",
+      fill: "hsl(var(--focus-blue))",
+    });
+  }
+
+  if (category_durations.browser) {
+    categoryData.push({
+      name: "Browser",
+      value: Math.round(
+        (category_durations.browser / total_duration_sec) * 100,
+      ),
+      fill: "hsl(var(--focus-amber))",
     });
   }
 
@@ -74,7 +72,7 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
       value: Math.round(
         (category_durations.work_related / total_duration_sec) * 100,
       ),
-      fill: "hsl(200, 18%, 46%)",
+      fill: "hsl(var(--focus-purple))",
     });
   }
 
@@ -84,7 +82,7 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
       value: Math.round(
         (category_durations.distraction / total_duration_sec) * 100,
       ),
-      fill: "hsl(4, 90%, 58%)",
+      fill: "hsl(var(--focus-red))",
     });
   }
 
@@ -92,11 +90,10 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
     categoryData.push({
       name: "Other",
       value: Math.round((category_durations.other / total_duration_sec) * 100),
-      fill: "hsl(40, 15%, 88%)",
+      fill: "hsl(var(--muted-foreground))",
     });
   }
 
-  // Find top application from interval_data
   const appFrequency: Record<string, number> = {};
   meetingData.interval_data.forEach((item) => {
     const cleanApp =
@@ -115,16 +112,18 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
       transition={{ duration: 0.5, delay: 0.6 }}
       className="grid grid-cols-1 md:grid-cols-3 gap-5"
     >
-      {/* Donut Chart */}
       <div className="glass-card rounded-2xl p-6 flex flex-col items-center">
         <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-          Meeting-Focused
+          Focus Score
         </h3>
         <div className="relative w-36 h-36">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={donutData}
+                data={[
+                  { name: "Focused", value: engagement_percentage },
+                  { name: "Distracted", value: 100 - engagement_percentage },
+                ]}
                 cx="50%"
                 cy="50%"
                 innerRadius={42}
@@ -132,24 +131,25 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
                 dataKey="value"
                 strokeWidth={0}
               >
-                {donutData.map((_, i) => (
-                  <Cell key={i} fill={DONUT_COLORS[i]} />
-                ))}
+                <Cell fill="hsl(var(--focus-blue))" />
+                <Cell fill="hsl(var(--focus-red))" />
               </Pie>
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-2xl font-bold">
-              {focusedCount}/{totalParticipants}
+              {Math.round(engagement_percentage)}%
             </span>
           </div>
         </div>
         <p className="text-xs text-muted-foreground mt-2 text-center">
-          {focusedCount} out of {totalParticipants} stayed mostly present 🙌
+          {engagement_percentage >= 70
+            ? "Great focus!"
+            : "Room for improvement"}{" "}
+          🙌
         </p>
       </div>
 
-      {/* Category Bar Chart */}
       <div className="glass-card rounded-2xl p-6">
         <h3 className="text-sm font-semibold text-muted-foreground mb-3">
           Category Analysis
@@ -181,7 +181,6 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
         </ResponsiveContainer>
       </div>
 
-      {/* Stats Cards */}
       <div className="flex flex-col gap-4">
         <div className="glass-card rounded-2xl p-5 flex-1">
           <div className="flex items-center gap-2 mb-3">
@@ -198,7 +197,7 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
               initial={{ width: 0 }}
               animate={{
                 width: `${Math.min(100, (avg_focus_seconds / 60) * 4)}%`,
-              }} // Adjust scaling as needed
+              }}
               transition={{ delay: 0.8, duration: 0.6 }}
               className="bg-primary h-2 rounded-full"
             />

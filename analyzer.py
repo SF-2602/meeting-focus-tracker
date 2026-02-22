@@ -20,13 +20,35 @@ def get_meeting_events(start: datetime, end: datetime) -> list[Event]:
         end=end,
         limit=10000  
     )
-    return sorted(events, key=lambda e: e.timestamp)
+
+    filtered_events = [
+        ev for ev in events 
+        if ev.data.get("app", "").lower() not in ["loginwindow", "lockscreen", "screensaver"]
+    ]
+
+    return sorted(filtered_events, key=lambda e: e.timestamp)
 
 def categorize_window_event(event: Event) -> str:
     """Categorize using local Ollama LLM (e.g., llama3 model)"""
     data = event.data
-    app = data.get("app", "").lower()
-    title = data.get("title", "").lower()
+    raw_app = data.get("app", "Unknown")
+    raw_title = data.get("title", "Unknown")
+    app = raw_app.lower()
+    title = raw_title.lower()
+
+    meeting_keywords = ['zoom', 'teams', 'meet', 'webex', 'skype', 'facetime']
+    
+    if any(keyword in app or keyword in title for keyword in meeting_keywords):
+        return 'meeting'
+    
+    browsers = ['chrome', 'firefox', 'safari', 'edge', 'brave', 'opera', 'vivaldi']
+    if any(browser in app for browser in browsers):
+        return 'browser'
+    
+    dev_tools = ['code', 'vscode', 'intellij', 'pycharm', 'sublime', 'atom', 'terminal']
+    
+    if any(tool in app for tool in dev_tools):
+        return 'work_related'
     
     cache_key = (app, title)
     if cache_key in CATEGORIZATION_CACHE:
@@ -39,6 +61,7 @@ def categorize_window_event(event: Event) -> str:
         - 'meeting'     → video calls, online meetings, conferencing apps (Zoom, Teams, Meet, etc.)
         - 'work_related' → any productivity, coding, documents, work email, work browser tabs, IDEs, code editors
         - 'distraction' → entertainment, social media, videos, games, shopping, non-work browsing  
+        - 'browser' → chrome, firefox, safari, edge, brave, opera, vivaldi
         - 'other'       → everything else (system windows, idle, unknown, etc.)
 
         **Important Rules:**
@@ -61,7 +84,7 @@ def categorize_window_event(event: Event) -> str:
         App name: {app}
         Window title: {title}
 
-        Respond **only** with one lowercase word: meeting, work_related, distraction or other.
+        Respond **only** with one lowercase word: meeting, browser, work_related, distraction or other.
         No explanation, no quotes, no extra text.
         """
     
@@ -82,6 +105,7 @@ def compute_overlap(event_start, event_end, bin_start, bin_end):
     return max(0, (overlap_end - overlap_start).total_seconds())
 
 def analyze_meeting(start_iso: str, end_iso: str):
+    CATEGORIZATION_CACHE.clear()
     start = datetime.fromisoformat(start_iso).astimezone(timezone.utc)
     end = datetime.fromisoformat(end_iso).astimezone(timezone.utc)
     
