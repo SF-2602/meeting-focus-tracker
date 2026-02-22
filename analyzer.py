@@ -21,12 +21,7 @@ def get_meeting_events(start: datetime, end: datetime) -> list[Event]:
         limit=10000  
     )
 
-    filtered_events = [
-        ev for ev in events 
-        if ev.data.get("app", "").lower() not in ["loginwindow", "lockscreen", "screensaver"]
-    ]
-
-    return sorted(filtered_events, key=lambda e: e.timestamp)
+    return sorted(events, key=lambda e: e.timestamp)
 
 def categorize_window_event(event: Event) -> str:
     """Categorize using local Ollama LLM (e.g., llama3 model)"""

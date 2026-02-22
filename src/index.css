@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 
 @layer base {
   :root {
@@ -20,7 +20,7 @@
     --secondary: 40 25% 93%;
     --secondary-foreground: 220 20% 25%;
 
-    --muted: 40 20% 94%;
+    --muted: 190 60% 40%;
     --muted-foreground: 220 10% 50%;
 
     --accent: 160 30% 90%;
@@ -35,7 +35,6 @@
 
     --radius: 0.75rem;
 
-    /* Focus tracker specific */
     --focus-green: 122 39% 49%;
     --focus-green-foreground: 0 0% 100%;
     --focus-amber: 36 100% 50%;
@@ -46,6 +45,7 @@
     --focus-blue-foreground: 0 0% 100%;
     --focus-purple: 280 45% 55%;
     --focus-purple-foreground: 0 0% 100%;
+    --focus-other: 180 15% 45%;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -104,11 +104,16 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: "DM Sans", system-ui, sans-serif;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Space Grotesk', system-ui, sans-serif;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
   }
 }
 

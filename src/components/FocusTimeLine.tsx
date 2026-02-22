@@ -341,7 +341,7 @@ const FocusTimeline = ({
                     <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-2">
                       Other
                     </div>
-                    <div className="flex-1 relative h-7 bg-muted/50 rounded-md overflow-hidden">
+                    <div className="flex-1 relative h-7 bg-focus-blue/10 rounded-md overflow-hidden">
                       {otherSegs.map((seg, sIdx) => (
                         <SegmentBar
                           key={`${pIdx}-other-${sIdx}`}

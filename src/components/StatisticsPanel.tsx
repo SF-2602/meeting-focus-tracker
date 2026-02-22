@@ -46,6 +46,31 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
 
   const categoryData = [];
 
+  const filteredIntervalData = meetingData.interval_data.filter(
+    (item) => item.category !== "other",
+  );
+
+  const focusedDuration = category_durations.meeting || 0;
+
+  const totalDurationWithoutOther =
+    focusedDuration + (category_durations.distraction || 0);
+
+  const realEngagementPercentage =
+    totalDurationWithoutOther > 0
+      ? Math.round((focusedDuration / totalDurationWithoutOther) * 100)
+      : 0;
+
+  const appFrequency: Record<string, number> = {};
+  filteredIntervalData.forEach((item) => {
+    const cleanApp =
+      item.app.split("\\").pop()?.split("/").pop()?.split(".")[0] || item.app;
+    appFrequency[cleanApp] = (appFrequency[cleanApp] || 0) + 1;
+  });
+
+  const topApp =
+    Object.entries(appFrequency).sort(([, a], [, b]) => b - a)[0]?.[0] ||
+    "Unknown App";
+
   if (category_durations.meeting) {
     categoryData.push({
       name: "Meeting",
@@ -94,16 +119,37 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
     });
   }
 
-  const appFrequency: Record<string, number> = {};
-  meetingData.interval_data.forEach((item) => {
-    const cleanApp =
-      item.app.split("\\").pop()?.split("/").pop()?.split(".")[0] || item.app;
-    appFrequency[cleanApp] = (appFrequency[cleanApp] || 0) + 1;
+  // Calculate focus streaks from filtered data
+  let focusDurations: number[] = [];
+  let currentFocusStart: number | null = null;
+
+  filteredIntervalData.forEach((item, index) => {
+    const isFocused = item.category === "meeting";
+
+    const startTime = index * 5 * 60;
+    const endTime = startTime + 5 * 60;
+
+    if (isFocused) {
+      if (currentFocusStart === null) {
+        currentFocusStart = startTime;
+      }
+    } else {
+      if (currentFocusStart !== null) {
+        focusDurations.push(endTime - currentFocusStart);
+        currentFocusStart = null;
+      }
+    }
   });
 
-  const topApp =
-    Object.entries(appFrequency).sort(([, a], [, b]) => b - a)[0]?.[0] ||
-    "Unknown App";
+  if (currentFocusStart !== null) {
+    const lastEndTime = filteredIntervalData.length * 5 * 60;
+    focusDurations.push(lastEndTime - currentFocusStart);
+  }
+
+  const avgFocusSeconds =
+    focusDurations.length > 0
+      ? focusDurations.reduce((a, b) => a + b, 0) / focusDurations.length
+      : 0;
 
   return (
     <motion.div
@@ -121,8 +167,8 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
             <PieChart>
               <Pie
                 data={[
-                  { name: "Focused", value: engagement_percentage },
-                  { name: "Distracted", value: 100 - engagement_percentage },
+                  { name: "Focused", value: realEngagementPercentage },
+                  { name: "Distracted", value: 100 - realEngagementPercentage },
                 ]}
                 cx="50%"
                 cy="50%"
@@ -138,7 +184,7 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-2xl font-bold">
-              {Math.round(engagement_percentage)}%
+              {realEngagementPercentage}%
             </span>
           </div>
         </div>
@@ -190,7 +236,7 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
             </h3>
           </div>
           <div className="text-3xl font-bold mb-2">
-            {Math.round(avg_focus_seconds / 60)} min
+            {Math.round(avgFocusSeconds / 60)} min
           </div>
           <div className="w-full bg-muted rounded-full h-2 mb-2">
             <motion.div

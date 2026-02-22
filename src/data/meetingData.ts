@@ -9,32 +9,10 @@ export interface ActivitySegment {
 export interface Participant {
   name: string;
   avatar: string;
-  improved: boolean; // improved vs last meeting
+  improved: boolean; 
   segments: ActivitySegment[];
 }
 
-
-export function getCategoryColor(category: ActivitySegment["category"]): string {
-  switch (category) {
-    case "meeting": return "bg-focus-green";
-    case "media": return "bg-focus-red";
-    case "social": return "bg-focus-red";
-    case "dev": return "bg-focus-purple";
-    case "office": return "bg-focus-blue";
-    default: return "bg-muted-foreground";
-  }
-}
-
-export function getCategoryLabel(category: ActivitySegment["category"]): string {
-  switch (category) {
-    case "meeting": return "Zoom Time";
-    case "media": return "Quick Breaks";
-    case "social": return "Social";
-    case "dev": return "Deep Work";
-    case "office": return "Office Apps";
-    default: return "Other";
-  }
-}
 
 // export function getFocusPercentage(p: Participant): number {
 //   const meetingMins = p.segments
