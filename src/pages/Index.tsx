@@ -4,17 +4,24 @@ import FocusTimeline from "../components/FocusTimeLine";
 import StatisticsPanel from "../components/StatisticsPanel";
 import { analyzeLastHour, type MeetingData } from "../services/api";
 
+import { v4 as uuidv4 } from "uuid";
+
 const Index = () => {
   const [meetingData, setMeetingData] = useState<MeetingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const userId = uuidv4();
+  const meetingId = uuidv4();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await analyzeLastHour();
+        const data = await analyzeLastHour({
+          user_id: userId,
+          meeting_id: meetingId,
+        });
         setMeetingData(data);
       } catch (err: any) {
         setError(err.message || "Failed to load meeting data");

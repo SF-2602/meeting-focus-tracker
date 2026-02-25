@@ -8,6 +8,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from analyzer import analyze_meeting  
 app = FastAPI(title="Meeting Focus Tracker API")
 
+class MeetingRequest(BaseModel):
+    start_time: str  
+    end_time: str    
+    user_id: str    
+    meeting_id: str
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  
@@ -15,12 +21,7 @@ app.add_middleware(
     allow_methods=["*"],  
     allow_headers=["*"],  
 )
-
-
-
-class MeetingRequest(BaseModel):
-    start_time: str  
-    end_time: str    
+ 
 
 class MeetingResponse(BaseModel):
     total_duration_sec: float
@@ -33,7 +34,12 @@ class MeetingResponse(BaseModel):
 async def analyze_meeting_endpoint(request: MeetingRequest):
     try:
 
-        result = analyze_meeting(request.start_time, request.end_time)
+        result = analyze_meeting(
+            request.start_time,
+            request.end_time,
+            user_id=request.user_id,
+            meeting_id=request.meeting_id
+        )
         
         if result[0] is None:  
             raise HTTPException(status_code=404, detail="No activity data found")

@@ -4,10 +4,14 @@ from aw_core.models import Event
 from datetime import datetime, timedelta, timezone
 import ollama  
 from collections import defaultdict
+import os
+from dotenv import load_dotenv
+from supabase import create_client
 
 HOSTNAME = socket.gethostname()
 WINDOW_BUCKET = f"aw-watcher-window_{HOSTNAME}"
 AFK_BUCKET = f"aw-watcher-afk_{HOSTNAME}"
+
 
 client = ActivityWatchClient("meeting-focus-client", testing=False)
 CATEGORIZATION_CACHE = {}
@@ -99,7 +103,34 @@ def compute_overlap(event_start, event_end, bin_start, bin_end):
     overlap_end = min(event_end, bin_end)
     return max(0, (overlap_end - overlap_start).total_seconds())
 
-def analyze_meeting(start_iso: str, end_iso: str):
+def save_event_to_supabase(user_id: str, meeting_id: str, event_data: dict):
+    """Save categorized event to Supabase"""
+    try:
+        load_dotenv()
+
+
+        supabase = create_client(
+            os.getenv("SUPABASE_URL"),      
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")       
+        )
+        print(f"Attempting to save: {event_data['app']} ({event_data['category']})")
+
+        result = supabase.table("window_events").insert({
+            "user_id": user_id,
+            "meeting_id": meeting_id,
+            "timestamp": event_data["timestamp"],
+            "app": event_data["app"],
+            "category": event_data["category"],
+            "duration_seconds": event_data["duration_seconds"]
+        }).execute()
+
+        print(f"Saved: {result}")
+
+    except Exception as e:
+        print(f"FAILED to save: {e}")
+        raise
+
+def analyze_meeting(start_iso: str, end_iso: str, user_id: str = "default", meeting_id: str = "default"):
     CATEGORIZATION_CACHE.clear()
     start = datetime.fromisoformat(start_iso).astimezone(timezone.utc)
     end = datetime.fromisoformat(end_iso).astimezone(timezone.utc)
@@ -116,10 +147,25 @@ def analyze_meeting(start_iso: str, end_iso: str):
     current_focus_start = None
     hkt_tz = timezone(timedelta(hours=8))  
     
+    processed_events = []
     for ev in events:
         cat = categorize_window_event(ev)
         dur_sec = ev.duration.total_seconds() if ev.duration else 10  
         
+        save_event_to_supabase(user_id, meeting_id, {
+            "timestamp": ev.timestamp.isoformat(),
+            "app": ev.data.get('app', 'Unknown'),
+            "category": cat,
+            "duration_seconds": int(dur_sec)
+        })
+        
+        processed_events.append({
+            'event': ev,
+            'category': cat,
+            'duration_seconds': dur_sec
+        })
+        
+        # Update overall stats
         category_durations[cat] += dur_sec
         event_details.append({
             'cat': cat,
@@ -165,12 +211,14 @@ def analyze_meeting(start_iso: str, end_iso: str):
         dominant_cat = "other"
         max_overlap = 0
         
-        for ev in events:
+        for item in processed_events:
+            ev = item['event']
+            cat = item['category']
+            
             ev_start = ev.timestamp
             ev_end = ev_start + (ev.duration or timedelta(seconds=10))
             overlap = compute_overlap(ev_start, ev_end, current_bin, bin_end)
             if overlap > 0:
-                cat = categorize_window_event(ev)
                 bin_category_durations[cat] += overlap
                 if overlap > max_overlap:
                     max_overlap = overlap

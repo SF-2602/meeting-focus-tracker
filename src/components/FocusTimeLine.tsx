@@ -105,9 +105,6 @@ const convertIntervalDataToSegments = (
 ): ActivitySegment[] => {
   if (!intervalData.length) return [];
 
-  // let baseHour = parseInt(intervalData[0].time.split(":")[0]);
-  // let baseMinute = parseInt(intervalData[0].time.split(":")[1]);
-
   let baseHour: number;
   let baseMinute: number;
 

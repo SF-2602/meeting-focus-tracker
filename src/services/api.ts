@@ -22,6 +22,8 @@ export interface MeetingData {
 export interface MeetingRequest {
   start_time: string;
   end_time: string;
+  user_id?: string;
+  meeting_id?: string;
 }
 
 export const analyzeMeeting = async (
@@ -32,9 +34,7 @@ export const analyzeMeeting = async (
 
     const response = await fetch(`${API_BASE_URL}/analyze-meeting`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
     });
 
@@ -61,7 +61,9 @@ export const analyzeMeeting = async (
   }
 };
 
-export const analyzeLastHour = async (): Promise<MeetingData> => {
+export const analyzeLastHour = async (
+  context: { user_id?: string; meeting_id?: string } = {},
+): Promise<MeetingData> => {
   const now = new Date();
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
@@ -73,5 +75,6 @@ export const analyzeLastHour = async (): Promise<MeetingData> => {
   return analyzeMeeting({
     start_time: oneHourAgo.toISOString(),
     end_time: now.toISOString(),
+    ...context, 
   });
 };
