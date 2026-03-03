@@ -75,7 +75,7 @@ const Index = () => {
       <div className="max-w-5xl mx-auto px-6 py-10">
         <MeetingHeader
           duration={meetingData.total_duration_sec / 60}
-          participants={4}
+          participants={1}
         />
         <FocusTimeline intervalData={meetingData.interval_data} />
         <StatisticsPanel meetingData={meetingData} />

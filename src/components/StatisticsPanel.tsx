@@ -52,12 +52,9 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
 
   const focusedDuration = category_durations.meeting || 0;
 
-  const totalDurationWithoutOther =
-    focusedDuration + (category_durations.distraction || 0);
-
   const realEngagementPercentage =
-    totalDurationWithoutOther > 0
-      ? Math.round((focusedDuration / totalDurationWithoutOther) * 100)
+    total_duration_sec > 0
+      ? Math.round((focusedDuration / total_duration_sec) * 100)
       : 0;
 
   const appFrequency: Record<string, number> = {};
@@ -168,7 +165,7 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
               <Pie
                 data={[
                   { name: "Focused", value: realEngagementPercentage },
-                  { name: "Distracted", value: 100 - realEngagementPercentage },
+                  { name: "Other", value: 100 - realEngagementPercentage },
                 ]}
                 cx="50%"
                 cy="50%"

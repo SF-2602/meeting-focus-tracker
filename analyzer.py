@@ -106,8 +106,8 @@ def compute_overlap(event_start, event_end, bin_start, bin_end):
 def save_event_to_supabase(user_id: str, meeting_id: str, event_data: dict):
     """Save categorized event to Supabase"""
     try:
+        # will be fix later (so the data will be )
         load_dotenv()
-
 
         supabase = create_client(
             os.getenv("SUPABASE_URL"),      
@@ -129,6 +129,7 @@ def save_event_to_supabase(user_id: str, meeting_id: str, event_data: dict):
     except Exception as e:
         print(f"FAILED to save: {e}")
         raise
+
 
 def analyze_meeting(start_iso: str, end_iso: str, user_id: str = "default", meeting_id: str = "default"):
     CATEGORIZATION_CACHE.clear()
@@ -152,12 +153,6 @@ def analyze_meeting(start_iso: str, end_iso: str, user_id: str = "default", meet
         cat = categorize_window_event(ev)
         dur_sec = ev.duration.total_seconds() if ev.duration else 10  
         
-        save_event_to_supabase(user_id, meeting_id, {
-            "timestamp": ev.timestamp.isoformat(),
-            "app": ev.data.get('app', 'Unknown'),
-            "category": cat,
-            "duration_seconds": int(dur_sec)
-        })
         
         processed_events.append({
             'event': ev,
@@ -165,7 +160,6 @@ def analyze_meeting(start_iso: str, end_iso: str, user_id: str = "default", meet
             'duration_seconds': dur_sec
         })
         
-        # Update overall stats
         category_durations[cat] += dur_sec
         event_details.append({
             'cat': cat,
@@ -237,6 +231,13 @@ def analyze_meeting(start_iso: str, end_iso: str, user_id: str = "default", meet
             'app': dominant_app,
             'title': dominant_title[:60] + '...' if len(dominant_title) > 60 else dominant_title,
             'engaged_pct': engaged_pct
+        })
+
+        save_event_to_supabase(user_id, meeting_id, {
+            "timestamp": current_bin.isoformat(),      
+            "app": dominant_app,
+            "category": dominant_cat,
+            "duration_seconds": int(bin_total_sec)     
         })
 
         current_bin = bin_end
