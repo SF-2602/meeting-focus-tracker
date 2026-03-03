@@ -19,7 +19,7 @@ interface MeetingData {
     meeting?: number;
     browser?: number;
     work_related?: number;
-    distraction?: number;
+    instant_message?: number;
     other?: number;
   };
   avg_focus_seconds: number;
@@ -98,11 +98,11 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
     });
   }
 
-  if (category_durations.distraction) {
+  if (category_durations.instant_message) {
     categoryData.push({
-      name: "Distraction",
+      name: "Instant Msg",
       value: Math.round(
-        (category_durations.distraction / total_duration_sec) * 100,
+        (category_durations.instant_message / total_duration_sec) * 100,
       ),
       fill: "hsl(var(--focus-red))",
     });

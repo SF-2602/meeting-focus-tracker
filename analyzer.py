@@ -41,8 +41,28 @@ def categorize_window_event(event: Event) -> str:
         return 'meeting'
     
     browsers = ['chrome', 'firefox', 'safari', 'edge', 'brave', 'opera', 'vivaldi']
-    if any(browser in app for browser in browsers):
-        return 'browser'
+    is_browser = any(browser in app for browser in browsers)
+
+    if is_browser:
+        meeting_url_patterns = [
+            'meet.google.com', 'zoom.us/j/', 'zoom.us/w/', 
+            'teams.microsoft.com', 'webex.com', 'whereby.com',
+            'jitsi.meet', 'bluejeans.com', '8x8.com'
+        ]
+
+        meeting_title_keywords = [
+            'google meet', 'zoom meeting', 'microsoft teams', 
+            'webex meeting', 'video call', 'join meeting',
+            'meeting invitation', 'conference call'
+        ]
+
+        if any(pattern in title or pattern in raw_title.lower() for pattern in meeting_url_patterns) or \
+           any(keyword in title for keyword in meeting_title_keywords):
+            return 'meeting'
+        
+        im_patterns = ['slack.com', 'discord.com', 'telegram.org', 'web.whatsapp.com', 'messenger.com']
+        if any(pattern in title for pattern in im_patterns):
+            return 'instant_message' 
     
     dev_tools = ['code', 'vscode', 'intellij', 'pycharm', 'sublime', 'atom', 'terminal']
     
@@ -59,7 +79,7 @@ def categorize_window_event(event: Event) -> str:
         Categorize it as **exactly one** of these four options:
         - 'meeting'     → video calls, online meetings, conferencing apps (Zoom, Teams, Meet, etc.)
         - 'work_related' → any productivity, coding, documents, work email, work browser tabs, IDEs, code editors
-        - 'distraction' → entertainment, social media, videos, games, shopping, non-work browsing  
+        - 'instant_message' → entertainment, social media, videos, games, shopping, non-work browsing  
         - 'browser' → chrome, firefox, safari, edge, brave, opera, vivaldi
         - 'other'       → everything else (system windows, idle, unknown, etc.)
 
@@ -78,18 +98,18 @@ def categorize_window_event(event: Event) -> str:
         App: zoom.us           Title: Zoom Meeting with Team X                    → meeting
         App: Teams             Title: Microsoft Teams | Daily Standup            → meeting
         App: Google Chrome     Title: UX on Sean - Trello                        → work_related
-        App: chrome            Title: YouTube - funny cat video                  → distraction
+        App: chrome            Title: YouTube - funny cat video                  → instant_message
 
         App name: {app}
         Window title: {title}
 
-        Respond **only** with one lowercase word: meeting, browser, work_related, distraction or other.
+        Respond **only** with one lowercase word: meeting, browser, work_related, instant_message or other.
         No explanation, no quotes, no extra text.
         """
     
     try:
         response = ollama.chat(model='llama3', messages=[{'role': 'user', 'content': prompt}])['message']['content'].strip().lower()
-        if response in ['meeting', 'work_related', 'distraction', 'other']:
+        if response in ['meeting', 'work_related', 'instant_message', 'other']:
             CATEGORIZATION_CACHE[cache_key] = response
             return response
         else:

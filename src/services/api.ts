@@ -6,7 +6,7 @@ export interface MeetingData {
   category_durations: {
     meeting?: number;
     work_related?: number;
-    distraction?: number;
+    instant_message?: number;
     other?: number;
   };
   avg_focus_seconds: number;

@@ -6,7 +6,7 @@ export function mapBackendCategoryToTimelineCategory(backendCategory: string):
     case "work_related":
  
       return "dev"; 
-    case "distraction":
+    case "instant_message":
 
       return "media";
     case "other":

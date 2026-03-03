@@ -6,6 +6,7 @@ import {
   TooltipTrigger,
 } from "./ui/tooltip";
 import { getAppIconUrl } from "../utils/getAppIcon";
+import { getDisplayAppName } from "../utils/getDisplayAppName";
 
 interface ActivitySegment {
   startMin: number;
@@ -43,7 +44,7 @@ const getCategoryColor = (category: string) => {
       return "bg-focus-blue";
     case "work_related":
       return "bg-focus-purple";
-    case "distraction":
+    case "instant_message":
       return "bg-focus-red";
     case "browser":
       return "bg-focus-amber";
@@ -60,7 +61,7 @@ const getCategoryFallbackIcon = (category: string) => {
       return "📹";
     case "work_related":
       return "💻";
-    case "distraction":
+    case "instant_message":
       return "📱";
     case "browser":
       return "🔎";
@@ -129,12 +130,13 @@ const convertIntervalDataToSegments = (
     const startMin = (itemHour - baseHour) * 60 + (itemMinute - baseMinute);
     const endMin = startMin + 5;
 
+    const displayName = getDisplayAppName(item.app, item.title, item.category);
     const iconUrl = getAppIconUrl(item.app);
 
     return {
       startMin,
       endMin,
-      app: item.app,
+      app: displayName,
       category: item.category,
       iconUrl,
       baseHour,
@@ -367,7 +369,8 @@ const FocusTimeline = ({
             <span className="h-2.5 w-2.5 rounded-sm bg-focus-amber" /> Browser
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-focus-red" /> Distraction
+            <span className="h-2.5 w-2.5 rounded-sm bg-focus-red" /> Instant
+            Message
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm bg-muted" /> Other
