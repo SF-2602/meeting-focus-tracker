@@ -61,20 +61,55 @@ export const analyzeMeeting = async (
   }
 };
 
-export const analyzeLastHour = async (
-  context: { user_id?: string; meeting_id?: string } = {},
-): Promise<MeetingData> => {
-  const now = new Date();
-  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+// export const analyzeLastHour = async (
+//   context: { user_id?: string; meeting_id?: string } = {},
+// ): Promise<MeetingData> => {
+//   const now = new Date();
+//   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
-  console.log("Analyzing last hour:", {
-    start_time: oneHourAgo.toISOString(),
-    end_time: now.toISOString(),
-  });
+//   console.log("Analyzing last hour:", {
+//     start_time: oneHourAgo.toISOString(),
+//     end_time: now.toISOString(),
+//   });
 
-  return analyzeMeeting({
-    start_time: oneHourAgo.toISOString(),
-    end_time: now.toISOString(),
-    ...context, 
-  });
+//   return analyzeMeeting({
+//     start_time: oneHourAgo.toISOString(),
+//     end_time: now.toISOString(),
+//     ...context,
+//   });
+// };
+
+export const getMeetingFocus = async (params: {
+  user_id: string;
+  meeting_id?: string;
+  start_time?: string;
+  end_time?: string;
+}): Promise<MeetingData> => {
+  const query = new URLSearchParams();
+  query.set("user_id", params.user_id);
+  if (params.meeting_id) query.set("meeting_id", params.meeting_id);
+  if (params.start_time) query.set("start_time", params.start_time);
+  if (params.end_time) query.set("end_time", params.end_time);
+
+  const url = `${API_BASE_URL}/meeting-focus?${query.toString()}`;
+
+  const res = await fetch(url);
+
+  if (res.status === 404) {
+    console.warn("No meeting data found for query, backend returned 404");
+    return {
+      total_duration_sec: 0,
+      engagement_percentage: 0,
+      category_durations: {},
+      avg_focus_seconds: 0,
+      interval_data: [],
+    };
+  }
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Failed to fetch meeting data: ${res.status} – ${txt}`);
+  }
+
+  return res.json();
 };

@@ -126,7 +126,6 @@ def compute_overlap(event_start, event_end, bin_start, bin_end):
 def save_event_to_supabase(user_id: str, meeting_id: str, event_data: dict):
     """Save categorized event to Supabase"""
     try:
-        # will be fix later (so the data will be )
         load_dotenv()
 
         supabase = create_client(
@@ -151,7 +150,7 @@ def save_event_to_supabase(user_id: str, meeting_id: str, event_data: dict):
         raise
 
 
-def analyze_meeting(start_iso: str, end_iso: str, user_id: str = "default", meeting_id: str = "default"):
+def analyze_meeting(start_iso: str, end_iso: str, user_id: str, meeting_id: str = "default"):
     CATEGORIZATION_CACHE.clear()
     start = datetime.fromisoformat(start_iso).astimezone(timezone.utc)
     end = datetime.fromisoformat(end_iso).astimezone(timezone.utc)
@@ -212,6 +211,17 @@ def analyze_meeting(start_iso: str, end_iso: str, user_id: str = "default", meet
     
     interval_data = [] 
     current_bin = start_rounded
+
+    def is_within_allowed_range(dt: datetime, ranges: list[tuple[int, int]] | None) -> bool:
+        if ranges is None:
+            return True  # No filtering = process everything
+        hour = dt.hour
+        for start_h, end_h in ranges:
+
+            if start_h <= hour < end_h:
+                return True
+        return False
+    
     while current_bin < end:
         bin_end = min(current_bin + timedelta(minutes=5), end)
         bin_total_sec = (bin_end - current_bin).total_seconds()
