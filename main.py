@@ -160,8 +160,10 @@ async def get_meeting_focus(
 
     interval_data = []
     for r in rows:
+        # Convert stored timestamp to local timezone for display
+        local_ts = datetime.fromisoformat(r["timestamp"]).astimezone()
         interval_data.append({
-            "time": datetime.fromisoformat(r["timestamp"]).strftime("%H:%M"),
+            "time": local_ts.strftime("%H:%M"),
             "category": r["category"],
             "app": r["app"],
             "title": "—",          

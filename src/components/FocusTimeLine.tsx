@@ -16,6 +16,8 @@ interface ActivitySegment {
   iconUrl: string | null;
   baseHour: number;
   baseMinute: number;
+  /** If true, this bin is in the future — show empty, no fill */
+  isFuture?: boolean;
 }
 
 interface Participant {
@@ -34,6 +36,10 @@ interface FocusTimelineProps {
     engaged_pct: number;
   }>;
   meetingStartTime?: string;
+  /** ISO string; bins that end after this are shown empty (not yet passed) */
+  cutoffTimeIso?: string;
+  /** YYYY-MM-DD for the meeting date (local), used with interval time to detect future bins */
+  meetingDate?: string;
 }
 
 const MEETING_DURATION = 60;
@@ -86,7 +92,8 @@ const mergeAdjacentSegments = (
     if (
       current.app === next.app &&
       current.category === next.category &&
-      current.endMin === next.startMin
+      current.endMin === next.startMin &&
+      current.isFuture === next.isFuture
     ) {
       // Extend the current segment
       current.endMin = next.endMin;
@@ -103,6 +110,8 @@ const mergeAdjacentSegments = (
 const convertIntervalDataToSegments = (
   intervalData: FocusTimelineProps["intervalData"],
   meetingStartTime?: string,
+  meetingDate?: string,
+  cutoffTimeIso?: string,
 ): ActivitySegment[] => {
   if (!intervalData.length) return [];
 
@@ -122,6 +131,11 @@ const convertIntervalDataToSegments = (
     baseMinute = 0;
   }
 
+  const cutoffMs =
+    cutoffTimeIso && meetingDate
+      ? new Date(cutoffTimeIso).getTime()
+      : undefined;
+
   return intervalData.map((item) => {
     const [hourStr, minuteStr] = item.time.split(":");
     const itemHour = parseInt(hourStr);
@@ -129,6 +143,13 @@ const convertIntervalDataToSegments = (
 
     const startMin = (itemHour - baseHour) * 60 + (itemMinute - baseMinute);
     const endMin = startMin + 5;
+
+    let isFuture = false;
+    if (cutoffMs != null && meetingDate) {
+      const binEnd = new Date(`${meetingDate}T${item.time}`);
+      binEnd.setMinutes(binEnd.getMinutes() + 5);
+      if (binEnd.getTime() > cutoffMs) isFuture = true;
+    }
 
     const displayName = getDisplayAppName(item.app, item.title, item.category);
     const iconUrl = getAppIconUrl(item.app);
@@ -141,6 +162,7 @@ const convertIntervalDataToSegments = (
       iconUrl,
       baseHour,
       baseMinute,
+      isFuture,
     };
   });
 };
@@ -169,6 +191,16 @@ const SegmentBar = ({
   const startM = startTotalMinutes % 60;
   const endH = Math.floor(endTotalMinutes / 60) % 24;
   const endM = endTotalMinutes % 60;
+
+  if (seg.isFuture) {
+    return (
+      <div
+        className="absolute top-0.5 bottom-0.5 rounded-md cursor-default origin-left"
+        style={{ left: `${left}%`, width: `${width}%` }}
+        title="Not yet"
+      />
+    );
+  }
 
   return (
     <Tooltip>
@@ -236,10 +268,35 @@ const generateTimeLabels = (
 const FocusTimeline = ({
   intervalData,
   meetingStartTime,
+  cutoffTimeIso,
+  meetingDate,
 }: FocusTimelineProps) => {
+  // Only show the most recent 60 minutes (12 × 5‑minute bins)
+  const lastHourData =
+    intervalData.length > 12
+      ? intervalData.slice(intervalData.length - 12)
+      : intervalData;
+
+  // If we have a cutoff, only show intervals that have already passed (no bars for future time)
+  const cutoffMs =
+    cutoffTimeIso && meetingDate
+      ? new Date(cutoffTimeIso).getTime()
+      : undefined;
+
+  const displayedData =
+    cutoffMs != null && meetingDate
+      ? lastHourData.filter((item) => {
+          const binEnd = new Date(`${meetingDate}T${item.time}`);
+          binEnd.setMinutes(binEnd.getMinutes() + 5);
+          return binEnd.getTime() <= cutoffMs;
+        })
+      : lastHourData;
+
   const currentUserSegments = convertIntervalDataToSegments(
-    intervalData,
+    displayedData,
     meetingStartTime,
+    meetingDate,
+    cutoffTimeIso,
   );
 
   const mockParticipants: Participant[] = [
@@ -251,7 +308,7 @@ const FocusTimeline = ({
     },
   ];
 
-  const timeLabels = generateTimeLabels(intervalData);
+  const timeLabels = generateTimeLabels(displayedData);
 
   return (
     <TooltipProvider>

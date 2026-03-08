@@ -61,23 +61,23 @@ export const analyzeMeeting = async (
   }
 };
 
-// export const analyzeLastHour = async (
-//   context: { user_id?: string; meeting_id?: string } = {},
-// ): Promise<MeetingData> => {
-//   const now = new Date();
-//   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+export const analyzeLastHour = async (
+  context: { user_id?: string; meeting_id?: string } = {},
+): Promise<MeetingData> => {
+  const now = new Date();
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
-//   console.log("Analyzing last hour:", {
-//     start_time: oneHourAgo.toISOString(),
-//     end_time: now.toISOString(),
-//   });
+  console.log("Analyzing last hour:", {
+    start_time: oneHourAgo.toISOString(),
+    end_time: now.toISOString(),
+  });
 
-//   return analyzeMeeting({
-//     start_time: oneHourAgo.toISOString(),
-//     end_time: now.toISOString(),
-//     ...context,
-//   });
-// };
+  return analyzeMeeting({
+    start_time: oneHourAgo.toISOString(),
+    end_time: now.toISOString(),
+    ...context,
+  });
+};
 
 export const getMeetingFocus = async (params: {
   user_id: string;

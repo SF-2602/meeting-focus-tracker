@@ -4,15 +4,21 @@ import { Target, Users, Clock } from "lucide-react";
 interface MeetingHeaderProps {
   duration?: number;
   participants?: number;
+  /** Start time from time input (HH:mm) — overrides duration-based start */
+  startTimeLabel?: string;
+  /** End time from time input (HH:mm) — overrides duration-based end */
+  endTimeLabel?: string;
 }
 
 const MeetingHeader = ({
   duration = 60,
   participants = 4,
+  startTimeLabel,
+  endTimeLabel,
 }: MeetingHeaderProps) => {
-  const startTime = new Date();
-  startTime.setHours(startTime.getHours() - Math.floor(duration / 60));
-  const endTime = new Date();
+  const fallbackStart = new Date();
+  fallbackStart.setHours(fallbackStart.getHours() - Math.floor(duration / 60));
+  const fallbackEnd = new Date();
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString("en-US", {
@@ -21,6 +27,9 @@ const MeetingHeader = ({
       minute: "2-digit",
     });
   };
+
+  const startDisplay = startTimeLabel ?? formatTime(fallbackStart);
+  const endDisplay = endTimeLabel ?? formatTime(fallbackEnd);
 
   return (
     <motion.header
@@ -53,7 +62,7 @@ const MeetingHeader = ({
       <div className="flex items-center gap-6 text-sm text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <Clock className="h-3.5 w-3.5" />
-          {formatTime(startTime)} – {formatTime(endTime)}
+          {startDisplay} – {endDisplay}
         </span>
         <span className="flex items-center gap-1.5">
           <Users className="h-3.5 w-3.5" /> {participants} participants
