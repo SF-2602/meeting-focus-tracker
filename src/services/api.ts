@@ -1,14 +1,27 @@
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-export interface MeetingData {
+export interface Meeting {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  participant_count: number;
+}
+
+export interface UserMeeting {
+  meeting_id: string;
+  meeting_name: string;
+  start_time: string;
+  end_time: string;
+  role: string;
+  joined_at: string;
+}
+
+export interface MeetingAnalytics {
+  meeting_id: string;
   total_duration_sec: number;
   engagement_percentage: number;
-  category_durations: {
-    meeting?: number;
-    work_related?: number;
-    instant_message?: number;
-    other?: number;
-  };
+  category_durations: Record<string, number>;
   avg_focus_seconds: number;
   interval_data: Array<{
     time: string;
@@ -17,99 +30,93 @@ export interface MeetingData {
     title: string;
     engaged_pct: number;
   }>;
+  user_stats: Array<{
+    user_id: string;
+    total_duration_sec: number;
+    engagement_percentage: number;
+    category_durations: Record<string, number>;
+  }>;
 }
 
-export interface MeetingRequest {
-  start_time: string;
-  end_time: string;
-  user_id?: string;
-  meeting_id?: string;
-}
-
-export const analyzeMeeting = async (
-  request: MeetingRequest,
-): Promise<MeetingData> => {
-  try {
-    console.log("Sending request to backend:", request);
-
-    const response = await fetch(`${API_BASE_URL}/analyze-meeting`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
-    });
-
-    console.log("Response status:", response.status);
-    console.log(
-      "Response headers:",
-      Object.fromEntries(response.headers.entries()),
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Backend error response:", errorText);
-      throw new Error(
-        `HTTP error! status: ${response.status}, message: ${errorText}`,
-      );
-    }
-
-    const data = await response.json();
-    console.log("Received data from backend:", data);
-    return data;
-  } catch (error) {
-    console.error("Error analyzing meeting:", error);
-    throw error;
-  }
+// ─── User Endpoints ───
+export const registerUser = async (userId: string) => {
+  const res = await fetch(`${API_BASE}/users/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  if (!res.ok) throw new Error("Registration failed");
+  return res.json();
 };
 
-export const analyzeLastHour = async (
-  context: { user_id?: string; meeting_id?: string } = {},
-): Promise<MeetingData> => {
-  const now = new Date();
-  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-
-  console.log("Analyzing last hour:", {
-    start_time: oneHourAgo.toISOString(),
-    end_time: now.toISOString(),
-  });
-
-  return analyzeMeeting({
-    start_time: oneHourAgo.toISOString(),
-    end_time: now.toISOString(),
-    ...context,
-  });
+export const getUserMeetings = async (userId: string): Promise<UserMeeting[]> => {
+  const res = await fetch(`${API_BASE}/users/${userId}/meetings`);
+  if (!res.ok) throw new Error("Failed to fetch meetings");
+  return res.json();
 };
+
+export const joinMeeting = async (userId: string, meetingId: string) => {
+  const res = await fetch(`${API_BASE}/meetings/join`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, meeting_id: meetingId }),
+  });
+  if (!res.ok) throw new Error("Failed to join meeting");
+  return res.json();
+};
+
+export const createMeeting = async (name: string, startTime: string, endTime: string, hostUserId: string) => {
+  const res = await fetch(`${API_BASE}/meetings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name,
+      start_time: startTime,
+      end_time: endTime,
+      host_user_id: hostUserId,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to create meeting");
+  return res.json();
+};
+
+export const getMeeting = async (meetingId: string): Promise<Meeting> => {
+  const res = await fetch(`${API_BASE}/meetings/${meetingId}`);
+  if (!res.ok) throw new Error("Meeting not found");
+  return res.json();
+};
+
+
+export const analyzeMeeting = async (params: {
+  meeting_id: string;
+  start_time?: string;
+  end_time?: string;
+}) => {
+  const searchParams = new URLSearchParams();
+  if (params.start_time) searchParams.set("start_time", params.start_time);
+  if (params.end_time) searchParams.set("end_time", params.end_time);
+  
+  const res = await fetch(
+    `${API_BASE}/meetings/${params.meeting_id}/analyze?${searchParams}`,
+    { method: "POST" }
+  );
+  if (!res.ok) throw new Error("Analysis failed");
+  return res.json() as Promise<MeetingAnalytics>;
+};
+
 
 export const getMeetingFocus = async (params: {
   user_id: string;
   meeting_id?: string;
   start_time?: string;
   end_time?: string;
-}): Promise<MeetingData> => {
-  const query = new URLSearchParams();
-  query.set("user_id", params.user_id);
-  if (params.meeting_id) query.set("meeting_id", params.meeting_id);
-  if (params.start_time) query.set("start_time", params.start_time);
-  if (params.end_time) query.set("end_time", params.end_time);
-
-  const url = `${API_BASE_URL}/meeting-focus?${query.toString()}`;
-
-  const res = await fetch(url);
-
-  if (res.status === 404) {
-    console.warn("No meeting data found for query, backend returned 404");
-    return {
-      total_duration_sec: 0,
-      engagement_percentage: 0,
-      category_durations: {},
-      avg_focus_seconds: 0,
-      interval_data: [],
-    };
-  }
-
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Failed to fetch meeting data: ${res.status} – ${txt}`);
-  }
-
+}) => {
+  const searchParams = new URLSearchParams({ user_id: params.user_id });
+  if (params.meeting_id) searchParams.set("meeting_id", params.meeting_id);
+  if (params.start_time) searchParams.set("start_time", params.start_time);
+  if (params.end_time) searchParams.set("end_time", params.end_time);
+  
+  const res = await fetch(`${API_BASE}/meeting-focus?${searchParams}`);
+  if (!res.ok) throw new Error("Failed to fetch focus data");
   return res.json();
 };

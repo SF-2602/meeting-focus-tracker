@@ -2,16 +2,36 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Target } from "lucide-react";
+import { registerUser } from "../services/api";
 
 const Login = () => {
   const [userId, setUserId] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userId.trim()) return;
-    localStorage.setItem("focus_user_id", userId.trim());
-    navigate("/meetings");
+    const trimmedId = userId.trim();
+    if (!trimmedId) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // ✅ Register user in Supabase
+      await registerUser(trimmedId);
+      
+      // ✅ Navigate to meetings with userId in state
+      navigate("/meetings", { 
+        state: { userId: trimmedId },
+        replace: true 
+      });
+    } catch (err: any) {
+      setError(err.message || "Failed to register user");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -28,14 +48,16 @@ const Login = () => {
             <Target className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Meeting Focus
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Enter your user ID to continue
-            </p>
+            <h1 className="text-2xl font-semibold tracking-tight">Meeting Focus</h1>
+            <p className="text-sm text-muted-foreground">Enter your user ID to continue</p>
           </div>
         </div>
+
+        {error && (
+          <div className="mb-4 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -48,15 +70,18 @@ const Login = () => {
               onChange={(e) => setUserId(e.target.value)}
               placeholder="e.g. 421829fb-3fe6-4fc4-8b2e-c4819b86dc5c"
               className="h-10 w-full px-3 rounded-md ring-1 ring-inset ring-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-shadow"
+              required
+              disabled={loading}
             />
           </div>
 
           <motion.button
             type="submit"
             whileTap={{ scale: 0.95 }}
-            className="w-full h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            disabled={loading}
+            className="w-full h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            Continue
+            {loading ? "Registering..." : "Continue"}
           </motion.button>
         </form>
 

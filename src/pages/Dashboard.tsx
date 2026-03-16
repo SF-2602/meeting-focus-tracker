@@ -1,135 +1,69 @@
 import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import MeetingHeader from "../components/MeetingHeader";
 import FocusTimeline from "../components/FocusTimeLine";
 import StatisticsPanel from "../components/StatisticsPanel";
-import {
-  analyzeMeeting,
-  getMeetingFocus,
-  type MeetingData,
-} from "../services/api";
+import { analyzeMeeting, type MeetingAnalytics } from "../services/api";
 
-// import { v4 as uuidv4 } from "uuid";
-
-const getOrCreateUserId = () => {
-  const defaultId = "421829fb-3fe6-4fc4-8b2e-c4819b86dc5c";
-  let uid = localStorage.getItem("focus_user_id");
-
-  if (!uid) {
-    localStorage.setItem("focus_user_id", defaultId);
-    uid = defaultId;
-  }
-
-  return uid;
-};
-
-/** Round time to :00 or :30 only (e.g. 9:15 → 9:30, 9:45 → 10:00). */
-const roundTimeToHalfHour = (timeStr: string): string => {
-  const [h, m] = timeStr.split(":").map((s) => parseInt(s, 10) || 0);
-  const min = m ?? 0;
-  const roundedMin = min < 15 ? 0 : min < 45 ? 30 : 0;
-  const addHour = min >= 45 ? 1 : 0;
-  const newH = (h + addHour) % 24;
-  return `${String(newH).padStart(2, "0")}:${roundedMin === 0 ? "00" : "30"}`;
-};
-
-const getDefaultRange = () => {
-  const now = new Date();
-  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-  const meetingDate = now.toISOString().slice(0, 10);
-  const startTime = roundTimeToHalfHour(
-    `${oneHourAgo.getHours()}:${oneHourAgo.getMinutes()}`,
-  );
-  const endTime = roundTimeToHalfHour(`${now.getHours()}:${now.getMinutes()}`);
-  return { meetingDate, startTime, endTime };
-};
-
-const rangeToIso = (
-  meetingDate: string,
-  startTime: string,
-  endTime: string,
-): { start_iso: string; end_iso: string } => {
-  const startDate = new Date(`${meetingDate}T${startTime}`);
-  let endDate = new Date(`${meetingDate}T${endTime}`);
-  if (endDate <= startDate) endDate.setDate(endDate.getDate() + 1);
-  return {
-    start_iso: startDate.toISOString(),
-    end_iso: endDate.toISOString(),
-  };
-};
-
-const defaults = getDefaultRange();
+interface DashboardState {
+  userId: string;
+  meetingId: string;
+  meetingName: string;
+  startTime: string;
+  endTime: string;
+}
 
 const Dashboard = () => {
-  const [meetingData, setMeetingData] = useState<MeetingData | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  const state = location.state as Partial<DashboardState> | null;
+  
+  const [meetingId, setMeetingId] = useState<string>(state?.meetingId || "");
+  const [meetingName, setMeetingName] = useState<string>(state?.meetingName || "Meeting");
+  const [startTime, setStartTime] = useState<string>(state?.startTime || "");
+  const [endTime, setEndTime] = useState<string>(state?.endTime || "");
+  
+  const [analytics, setAnalytics] = useState<MeetingAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [meetingDate, setMeetingDate] = useState(defaults.meetingDate);
-  const [startTime, setStartTime] = useState(defaults.startTime);
-  const [endTime, setEndTime] = useState(defaults.endTime);
 
-  const userId = getOrCreateUserId();
+  useEffect(() => {
+    if (!meetingId) {
+      navigate("/meetings", { replace: true });
+      return;
+    }
+    fetchAnalytics();
+  }, [meetingId]);
 
-  const fetchData = async (opts?: {
-    meetingDate: string;
-    startTime: string;
-    endTime: string;
-  }) => {
-    const {
-      meetingDate: d,
-      startTime: s,
-      endTime: e,
-    } = opts ?? {
-      meetingDate,
-      startTime,
-      endTime,
-    };
-    const { start_iso, end_iso } = rangeToIso(d, s, e);
-
+  const fetchAnalytics = async () => {
+    if (!meetingId) return;
+    
     try {
       setLoading(true);
       setError(null);
 
-      try {
-        await analyzeMeeting({
-          start_time: start_iso,
-          end_time: end_iso,
-          user_id: userId,
-          meeting_id: userId,
-        });
-      } catch (analyzeErr) {
-        console.error(
-          "Analysis failed (will still try to fetch existing data):",
-          analyzeErr,
-        );
-      }
-
-      const data = await getMeetingFocus({
-        user_id: userId,
-        meeting_id: userId,
-        start_time: start_iso,
-        end_time: end_iso,
+      const data = await analyzeMeeting({
+        meeting_id: meetingId,
+        start_time: startTime || undefined,
+        end_time: endTime || undefined,
       });
-      setMeetingData(data);
+      setAnalytics(data);
     } catch (err: any) {
-      setError(err.message || "Failed to load meeting data");
+      setError(err.message || "Failed to load analytics");
       console.error("Fetch error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [userId]);
-
+  // Loading / Error states
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">
-            Analyzing your meeting focus...
-          </p>
+          <p className="text-muted-foreground">Analyzing meeting activity...</p>
         </div>
       </div>
     );
@@ -141,110 +75,87 @@ const Dashboard = () => {
         <div className="text-center max-w-md p-6">
           <div className="text-destructive text-2xl mb-4">⚠️</div>
           <p className="text-muted-foreground mb-4">Error: {error}</p>
-          <p className="text-sm text-muted-foreground opacity-60">
-            Make sure ActivityWatch is running and the Python backend is
-            started.
-          </p>
+          <button
+            onClick={() => navigate("/meetings")}
+            className="text-sm text-primary hover:underline"
+          >
+            ← Back to Meetings
+          </button>
         </div>
       </div>
     );
   }
 
-  if (!meetingData) {
+  if (!analytics) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">No data available</p>
+        <p className="text-muted-foreground">No analytics available</p>
       </div>
     );
   }
-
-  const handleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
-    if (v) setStartTime(roundTimeToHalfHour(v));
-  };
-  const handleEndTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
-    if (v) setEndTime(roundTimeToHalfHour(v));
-  };
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-5xl mx-auto px-6 py-10">
-        <div className="mb-6 p-4 rounded-xl border bg-card text-card-foreground shadow-sm">
-          {/* <p className="text-sm font-medium text-muted-foreground mb-3">
-            Time range (rounded to :00 or :30)
-          </p> */}
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Date</span>
-              <input
-                type="date"
-                value={meetingDate}
-                onChange={(e) => setMeetingDate(e.target.value)}
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Start</span>
-              <input
-                type="time"
-                step="1800"
-                value={startTime}
-                onChange={handleStartTimeChange}
-                onBlur={(e) =>
-                  e.target.value &&
-                  setStartTime(roundTimeToHalfHour(e.target.value))
-                }
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">End</span>
-              <input
-                type="time"
-                step="1800"
-                value={endTime}
-                onChange={handleEndTimeChange}
-                onBlur={(e) =>
-                  e.target.value &&
-                  setEndTime(roundTimeToHalfHour(e.target.value))
-                }
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => fetchData()}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              Update range
-            </button>
+      <div className="max-w-6xl mx-auto px-6 py-10">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold tracking-tight">{meetingName}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {new Date(startTime).toLocaleString()} – {new Date(endTime).toLocaleString()}
+          </p>
+        </div>
+
+        {/* Aggregate Stats */}
+        <StatisticsPanel 
+          meetingData={{
+            total_duration_sec: analytics.total_duration_sec,
+            engagement_percentage: analytics.engagement_percentage,
+            category_durations: analytics.category_durations,
+            avg_focus_seconds: analytics.avg_focus_seconds,
+            interval_data: analytics.interval_data,
+          }}
+        />
+
+        {/* Timeline (all users combined) */}
+        <FocusTimeline
+          intervalData={analytics.interval_data}
+          meetingDate={new Date(startTime).toISOString().slice(0, 10)}
+          cutoffTimeIso={endTime}
+        />
+
+        {/* Per-User Breakdown */}
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold mb-4">Participant Activity</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            {analytics.user_stats.map((user) => (
+              <div key={user.user_id} className="glass-card rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium">User: {user.user_id.slice(0, 8)}…</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${
+                    user.engagement_percentage >= 70 ? 'bg-green-500/10 text-green-600' :
+                    user.engagement_percentage >= 40 ? 'bg-yellow-500/10 text-yellow-600' :
+                    'bg-red-500/10 text-red-600'
+                  }`}>
+                    {user.engagement_percentage}% engaged
+                  </span>
+                </div>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <div className="flex justify-between">
+                    <span>Duration</span>
+                    <span>{Math.round(user.total_duration_sec / 60)} min</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Focus Time</span>
+                    <span>{Math.round(user.category_durations['work_related'] / 60 || 0)} min</span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        <MeetingHeader
-          duration={meetingData.total_duration_sec / 60}
-          participants={1}
-          startTimeLabel={startTime}
-          endTimeLabel={endTime}
-        />
-        <FocusTimeline
-          intervalData={meetingData.interval_data}
-          meetingDate={meetingDate}
-          cutoffTimeIso={(() => {
-            const now = new Date();
-            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-            const endDateTime = new Date(`${meetingDate}T${endTime}`);
-            const cutoff =
-              meetingDate === todayStr && now < endDateTime ? now : endDateTime;
-            return cutoff.toISOString();
-          })()}
-        />
-        <StatisticsPanel meetingData={meetingData} />
-
         <p className="text-center text-xs text-muted-foreground mt-8 opacity-60">
-          🔒 Privacy-first · No screenshots or keystrokes · Only app names &
-          timestamps
+          🔒 Privacy-first · Aggregated data only · No personal content tracked
         </p>
       </div>
     </div>

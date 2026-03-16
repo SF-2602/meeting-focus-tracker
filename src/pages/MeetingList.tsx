@@ -1,72 +1,136 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ChevronRight, LogOut, Calendar, Clock } from "lucide-react";
+import {
+  Plus,
+  ChevronRight,
+  LogOut,
+  Calendar,
+  Clock,
+  Users,
+} from "lucide-react";
+import { getUserMeetings, joinMeeting, createMeeting } from "../services/api";
 
-interface StoredMeeting {
-  id: string;
-  meetingId: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  createdAt: string;
+interface UserMeeting {
+  meeting_id: string;
+  meeting_name: string;
+  start_time: string;
+  end_time: string;
+  role: string;
+  joined_at: string;
 }
-
-const getMeetings = (userId: string): StoredMeeting[] => {
-  const raw = localStorage.getItem(`meetings_${userId}`);
-  return raw ? JSON.parse(raw) : [];
-};
-
-const saveMeetings = (userId: string, meetings: StoredMeeting[]) => {
-  localStorage.setItem(`meetings_${userId}`, JSON.stringify(meetings));
-};
 
 const MeetingList = () => {
   const navigate = useNavigate();
-  const userId = localStorage.getItem("focus_user_id");
-  const [meetings, setMeetings] = useState<StoredMeeting[]>([]);
+  const location = useLocation();
+
+  const userIdFromState = (location.state as { userId?: string })?.userId;
+  const urlParams = new URLSearchParams(location.search);
+  const userId = userIdFromState || urlParams.get("user_id");
+
+  const [meetings, setMeetings] = useState<UserMeeting[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [meetingId, setMeetingId] = useState("");
+  const [newMeetingName, setNewMeetingName] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
 
   useEffect(() => {
     if (!userId) {
-      navigate("/");
+      navigate("/", { replace: true });
       return;
     }
-    setMeetings(getMeetings(userId));
+    fetchMeetings();
   }, [userId, navigate]);
 
-  const handleAdd = (e: React.FormEvent) => {
+  const fetchMeetings = async () => {
+    if (!userId) return;
+    try {
+      setLoading(true);
+      console.log("🔍 Fetching meetings for user:", userId);
+      const data = await getUserMeetings(userId);
+      console.log("📦 Received meetings:", data);
+      setMeetings(data);
+    } catch (err: any) {
+      console.error("❌ Failed to fetch meetings:", err);
+      alert("Failed to load meetings: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!meetingId.trim() || !userId) return;
-    const newMeeting: StoredMeeting = {
-      id: crypto.randomUUID(),
-      meetingId: meetingId.trim(),
-      date,
-      startTime,
-      endTime,
-      createdAt: new Date().toISOString(),
-    };
-    const updated = [newMeeting, ...meetings];
-    setMeetings(updated);
-    saveMeetings(userId, updated);
-    setMeetingId("");
-    setShowForm(false);
+    if (!newMeetingName.trim() || !userId) return;
+
+    try {
+      console.log("📝 Creating meeting:", {
+        newMeetingName,
+        date,
+        startTime,
+        endTime,
+        userId,
+      });
+
+      const startIso = new Date(`${date}T${startTime}`).toISOString();
+      const endIso = new Date(`${date}T${endTime}`).toISOString();
+
+      const result = await createMeeting(
+        newMeetingName.trim(),
+        startIso,
+        endIso,
+        userId,
+      );
+      console.log("✅ Meeting created:", result);
+
+      const joinResult = await joinMeeting(userId, result.meeting_id);
+      console.log("✅ Joined meeting:", joinResult);
+
+      setNewMeetingName("");
+      setShowForm(false);
+      fetchMeetings();
+    } catch (err: any) {
+      console.error("❌ Create meeting error:", err);
+      alert("Failed to create meeting: " + err.message);
+    }
+  };
+
+  const handleJoinMeeting = async (meetingId: string) => {
+    if (!userId) return;
+    try {
+      await joinMeeting(userId, meetingId);
+      fetchMeetings(); // Refresh to show newly joined meeting
+    } catch (err: any) {
+      console.error("Failed to join:", err);
+    }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("focus_user_id");
-    navigate("/");
+    navigate("/", { replace: true, state: {} });
   };
 
-  const handleViewDetails = (m: StoredMeeting) => {
-    navigate(
-      `/dashboard?meeting_id=${encodeURIComponent(m.meetingId)}&date=${m.date}&start=${m.startTime}&end=${m.endTime}`
-    );
+  const handleViewDetails = (meeting: UserMeeting) => {
+    navigate("/dashboard", {
+      state: {
+        userId,
+        meetingId: meeting.meeting_id,
+        meetingName: meeting.meeting_name,
+        startTime: meeting.start_time,
+        endTime: meeting.end_time,
+      },
+      replace: true,
+    });
   };
+
+  if (!userId) return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface">
@@ -78,7 +142,7 @@ const MeetingList = () => {
               Meeting Focus
             </h1>
             <span className="text-xs text-muted-foreground">
-              / {userId?.slice(0, 8)}…
+              / {userId.slice(0, 8)}…
             </span>
           </div>
           <button
@@ -94,9 +158,11 @@ const MeetingList = () => {
       <div className="max-w-5xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight">Meetings</h2>
+            <h2 className="text-2xl font-semibold tracking-tight">
+              Your Meetings
+            </h2>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {meetings.length} meeting{meetings.length !== 1 ? "s" : ""} tracked
+              {meetings.length} meeting{meetings.length !== 1 ? "s" : ""} joined
             </p>
           </div>
           <motion.button
@@ -105,31 +171,31 @@ const MeetingList = () => {
             className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
-            Add meeting
+            Create meeting
           </motion.button>
         </div>
 
-        {/* Add meeting form */}
+        {/* Create Meeting Form */}
         <AnimatePresence>
           {showForm && (
             <motion.form
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              onSubmit={handleAdd}
+              onSubmit={handleCreateMeeting}
               className="overflow-hidden"
             >
               <div className="glass-card rounded-xl p-5 mb-6 space-y-4">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                    Meeting ID
+                    Meeting Name
                   </label>
                   <input
                     type="text"
-                    value={meetingId}
-                    onChange={(e) => setMeetingId(e.target.value)}
-                    placeholder="Enter meeting identifier"
-                    className="h-10 w-full px-3 rounded-md ring-1 ring-inset ring-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-shadow"
+                    value={newMeetingName}
+                    onChange={(e) => setNewMeetingName(e.target.value)}
+                    placeholder="e.g. Daily Standup"
+                    className="h-10 w-full px-3 rounded-md ring-1 ring-inset ring-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     required
                   />
                 </div>
@@ -140,7 +206,7 @@ const MeetingList = () => {
                       type="date"
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
-                      className="h-10 px-3 rounded-md ring-1 ring-inset ring-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="h-10 px-3 rounded-md ring-1 ring-inset ring-input bg-background text-sm"
                     />
                   </label>
                   <label className="flex flex-col gap-1">
@@ -149,7 +215,7 @@ const MeetingList = () => {
                       type="time"
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
-                      className="h-10 px-3 rounded-md ring-1 ring-inset ring-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="h-10 px-3 rounded-md ring-1 ring-inset ring-input bg-background text-sm"
                     />
                   </label>
                   <label className="flex flex-col gap-1">
@@ -158,7 +224,7 @@ const MeetingList = () => {
                       type="time"
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
-                      className="h-10 px-3 rounded-md ring-1 ring-inset ring-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="h-10 px-3 rounded-md ring-1 ring-inset ring-input bg-background text-sm"
                     />
                   </label>
                 </div>
@@ -168,7 +234,7 @@ const MeetingList = () => {
                     whileTap={{ scale: 0.95 }}
                     className="h-8 px-4 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
                   >
-                    Save
+                    Create
                   </motion.button>
                   <button
                     type="button"
@@ -183,10 +249,12 @@ const MeetingList = () => {
           )}
         </AnimatePresence>
 
-        {/* Meeting table */}
+        {/* Meetings List */}
         {meetings.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground text-sm">
-            No meetings yet. Add one to get started.
+            <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>No meetings yet.</p>
+            <p className="mt-1">Create one or join with a meeting code.</p>
           </div>
         ) : (
           <div className="glass-card rounded-xl overflow-hidden">
@@ -194,13 +262,13 @@ const MeetingList = () => {
               <thead>
                 <tr className="bg-surface/50">
                   <th className="text-left text-[11px] uppercase tracking-wider font-semibold text-muted-foreground px-4 py-2.5">
-                    Meeting ID
+                    Meeting
                   </th>
                   <th className="text-left text-[11px] uppercase tracking-wider font-semibold text-muted-foreground px-4 py-2.5">
-                    Date
+                    Date & Time
                   </th>
                   <th className="text-left text-[11px] uppercase tracking-wider font-semibold text-muted-foreground px-4 py-2.5">
-                    Time
+                    Role
                   </th>
                   <th className="text-right text-[11px] uppercase tracking-wider font-semibold text-muted-foreground px-4 py-2.5">
                     Actions
@@ -210,36 +278,49 @@ const MeetingList = () => {
               <tbody>
                 {meetings.map((m, idx) => (
                   <motion.tr
-                    key={m.id}
+                    key={m.meeting_id}
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.03 }}
-                    className="border-b border-border last:border-0 hover:bg-surface/80 transition-colors duration-150"
+                    className="border-b border-border last:border-0 hover:bg-surface/80 transition-colors"
                   >
-                    <td className="px-4 py-3 text-sm font-medium tabular-nums">
-                      {m.meetingId.length > 20
-                        ? `${m.meetingId.slice(0, 20)}…`
-                        : m.meetingId}
+                    <td className="px-4 py-3 text-sm font-medium">
+                      {m.meeting_name}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1.5">
                         <Calendar className="h-3.5 w-3.5" />
-                        {m.date}
+                        {new Date(m.start_time).toLocaleDateString()}
+                        <Clock className="h-3.5 w-3.5 ml-2" />
+                        {new Date(m.start_time).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}{" "}
+                        –
+                        {new Date(m.end_time).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground tabular-nums">
-                      <span className="flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5" />
-                        {m.startTime} – {m.endTime}
+                    <td className="px-4 py-3 text-sm">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs ${
+                          m.role === "host"
+                            ? "bg-primary/10 text-primary"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {m.role}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <motion.button
                         whileTap={{ scale: 0.95 }}
                         onClick={() => handleViewDetails(m)}
-                        className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium bg-card ring-1 ring-input hover:ring-muted-foreground/30 rounded-md shadow-sm transition-all"
+                        className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium bg-card ring-1 ring-input hover:ring-muted-foreground/30 rounded-md shadow-sm"
                       >
-                        View details
+                        View analytics
                         <ChevronRight className="h-3 w-3" />
                       </motion.button>
                     </td>
