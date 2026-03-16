@@ -8,6 +8,7 @@ import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from collections import defaultdict
+import re
 
 from analyzer import analyze_meeting  
 
@@ -57,6 +58,11 @@ class MeetingAnalyticsResponse(BaseModel):
     interval_data: List[Dict[str, Any]]
     user_stats: List[Dict[str, Any]]
 
+class TriggerAnalysisRequest(BaseModel):
+    user_id: str
+    start_time: str  
+    end_time: str
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -64,6 +70,90 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.post("/meetings/{meeting_id}/trigger-analysis", status_code=202)
+async def trigger_analysis_endpoint(
+    meeting_id: str,
+    req: TriggerAnalysisRequest
+):
+    """
+    Trigger fresh analysis: fetch ActivityWatch data → categorize → save to Supabase
+    Returns immediately; analysis runs synchronously (consider Celery for async in production)
+    """
+    try:
+        print(f"\n🚀 Triggering analysis:")
+        print(f"  meeting_id: {meeting_id}")
+        print(f"  user_id: {req.user_id}")
+        print(f"  time range: {req.start_time} to {req.end_time}")
+        
+        meeting = supabase_client.table("meetings").select("id").eq("id", meeting_id).execute()
+        if not meeting:
+            raise HTTPException(status_code=404, detail=f"Meeting {meeting_id} not found")
+        
+        user = supabase_client.table("users").select("id").eq("id", req.user_id).execute()
+        if not user:
+            supabase_client.table("users").insert({"id": req.user_id}).execute()
+            print(f"Auto-registered user {req.user_id}")
+        
+        # ✅ Convert local time strings to UTC for analyzer
+        from datetime import datetime, timezone, timedelta
+        
+        # Parse as local time (assume HKT = UTC+8)
+        hkt_tz = timezone(timedelta(hours=8))
+        start_local = datetime.fromisoformat(req.start_time.replace("Z", ""))
+        end_local = datetime.fromisoformat(req.end_time.replace("Z", ""))
+        
+        # Add timezone info then convert to UTC
+        start_utc = start_local.replace(tzinfo=hkt_tz).astimezone(timezone.utc).isoformat()
+        end_utc = end_local.replace(tzinfo=hkt_tz).astimezone(timezone.utc).isoformat()
+        
+        print(f"  Converted to UTC: {start_utc} to {end_utc}")
+        
+        # ✅ Call analyzer.py with CORRECT meeting_id (not user_id!)
+        from analyzer import analyze_meeting
+        
+        result = analyze_meeting(
+            start_iso=start_utc,
+            end_iso=end_utc,
+            user_id=req.user_id,      # ✅ User UUID
+            meeting_id=meeting_id      # ✅ Meeting UUID (from URL)
+        )
+        
+        if result[0] is None:
+            print(f"No ActivityWatch events found for this time range")
+            return {
+                "status": "completed",
+                "message": "No activity data found in ActivityWatch for this time range",
+                "events_processed": 0
+            }
+        
+        total_sec, engagement, cat_durations, event_details, avg_focus, interval_data = result
+        
+        print(f"    Analysis complete:")
+        print(f"    - Total duration: {total_sec/60:.1f} min")
+        print(f"    - Engagement: {engagement}%")
+        print(f"    - Events saved: {len(interval_data)} intervals")
+        print(f"    - Categories: {cat_durations}")
+        
+        return {
+            "status": "completed",
+            "message": "Analysis completed successfully",
+            "events_processed": len(interval_data),
+            "summary": {
+                "total_duration_sec": total_sec,
+                "engagement_percentage": engagement,
+                "category_durations": cat_durations,
+                "avg_focus_seconds": avg_focus
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Trigger analysis error: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 @app.post("/users/register", status_code=201)
 async def register_user(req: UserRegisterRequest):
@@ -139,34 +229,31 @@ async def create_meeting(req: MeetingCreateRequest):
     try:
         user_check = supabase_client.table("users").select("id").eq("id", req.host_user_id).execute()
         if not user_check.data:
-
             supabase_client.table("users").insert({"id": req.host_user_id}).execute()
+        
+        start_local = datetime.fromisoformat(req.start_time.replace("Z", ""))
+        end_local = datetime.fromisoformat(req.end_time.replace("Z", ""))
         
         meeting_result = supabase_client.table("meetings").insert({
             "meetings": req.name,
-            "start_time": req.start_time,
-            "end_time": req.end_time
+            "start_time": start_local.isoformat(),  
+            "end_time": end_local.isoformat(),
         }).execute()
         
         if not meeting_result.data:
             raise Exception("Failed to create meeting")
         
         meeting_id = meeting_result.data[0]["id"]
-        print(f"Meeting created: {meeting_id}")
         
-        join_result = supabase_client.table("user_meetings").insert({
+        supabase_client.table("user_meetings").insert({
             "user_id": req.host_user_id,
             "meeting_id": meeting_id,
             "role": "host"
         }).execute()
         
-        print(f"User joined meeting: {join_result}")
-        
         return {"meeting_id": meeting_id, "name": req.name}
     except Exception as e:
         print(f"Meeting creation error: {e}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Creation failed: {str(e)}")
 
 @app.get("/meetings/{meeting_id}", response_model=MeetingResponse)
@@ -184,7 +271,7 @@ async def get_meeting(meeting_id: str):
         
         return MeetingResponse(
             id=meeting["id"],
-            name=meeting["meetings"],  # Column name
+            name=meeting["meetings"], 
             start_time=meeting["start_time"],
             end_time=meeting["end_time"],
             participant_count=count_result.count or 0
@@ -195,6 +282,7 @@ async def get_meeting(meeting_id: str):
         raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
 
     
+
 @app.post("/meetings/{meeting_id}/analyze", response_model=MeetingAnalyticsResponse)
 async def analyze_meeting_endpoint(
     meeting_id: str,
@@ -206,25 +294,96 @@ async def analyze_meeting_endpoint(
     Returns aggregate stats + per-user breakdown.
     """
     try:
-        # Get meeting time range if not provided
+        from datetime import datetime, timezone, timedelta
+        
+        # ✅ Helper: Convert local HKT time string → UTC ISO string (defined ONCE)
+        def hkt_to_utc(ts: Optional[str]) -> Optional[str]:
+            if not ts:
+                return None
+            
+            # Clean malformed timestamps (extra :00)
+            ts = re.sub(r'(:\d{2}:\d{2}):\d{2}$', r'\1', ts)
+            
+            # If already has timezone info, return as-is
+            if ts.endswith('Z') or '+' in ts[-6:]:
+                return ts
+            
+            try:
+                # Parse as naive datetime, assume HKT (UTC+8)
+                dt = datetime.fromisoformat(ts)
+                hkt_tz = timezone(timedelta(hours=8))
+                dt = dt.replace(tzinfo=hkt_tz)
+                # Convert to UTC for Supabase query
+                return dt.astimezone(timezone.utc).isoformat()
+            except ValueError as e:
+                print(f"⚠️ Failed to parse timestamp '{ts}': {e}")
+                return None
+        
+        # Get meeting time range from DB if query params not provided
         if not start_time or not end_time:
             meeting = supabase_client.table("meetings").select("start_time", "end_time").eq("id", meeting_id).single().execute()
             if not meeting.data:
                 raise HTTPException(status_code=404, detail="Meeting not found")
-            start_time = meeting.data["start_time"]
-            end_time = meeting.data["end_time"]
+            
+            # Meeting times stored as local (no TZ), convert to UTC for query
+            start_time = hkt_to_utc(meeting.data["start_time"])
+            end_time = hkt_to_utc(meeting.data["end_time"])
+        else:
+            # Convert frontend's local time params to UTC
+            print(f"🔄 Converting query params from HKT → UTC:")
+            print(f"   Input: start={start_time}, end={end_time}")
+            
+            start_time = hkt_to_utc(start_time)
+            end_time = hkt_to_utc(end_time)
+            
+            print(f"   Output: start={start_time}, end={end_time}")
         
-        # Fetch ALL window_events for this meeting (all users)
+        if not start_time or not end_time:
+            raise HTTPException(status_code=400, detail="Invalid time range format")
+        
+        # Fetch window_events for this meeting with UTC timestamps
+        print(f"🔍 Querying window_events:")
+        print(f"   meeting_id: {meeting_id}")
+        print(f"   timestamp >= {start_time} (UTC)")
+        print(f"   timestamp <= {end_time} (UTC)")
+        
         query = supabase_client.table("window_events").select("*").eq("meeting_id", meeting_id)
+        
         if start_time:
             query = query.gte("timestamp", start_time)
         if end_time:
             query = query.lte("timestamp", end_time)
         
-        result = query.order("timestamp").execute()
+        query = query.order("timestamp", desc=False)
+        result = query.execute()
         rows = result.data or []
         
+        print(f"📊 Found {len(rows)} window_events for meeting {meeting_id}")
+        
+        # 🔍 Debug: If no rows, show what's actually in the table
         if not rows:
+            print(f"⚠️ No rows found with time filter. Checking raw data...")
+            
+            # ✅ CORRECT: Access .data property of response
+            raw_check = supabase_client.table("window_events").select("*").eq("meeting_id", meeting_id).limit(10).execute()
+            raw_rows = raw_check.data or []
+            
+            if raw_rows:
+                print(f"🔍 Found {len(raw_rows)} rows for meeting_id={meeting_id} (ignoring time):")
+                for r in raw_rows:
+                    # ✅ Safe access - r is always a dict when using select("*")
+                    ts = r.get('timestamp', 'N/A')
+                    user = r.get('user_id', 'N/A')
+                    cat = r.get('category', 'N/A')
+                    print(f"   - ts={ts}, user={str(user)[:8]}..., cat={cat}")
+            else:
+                print(f"❌ No rows at all for meeting_id={meeting_id} in window_events!")
+                print(f"💡 Possible causes:")
+                print(f"   1. analyzer.py saved with wrong meeting_id")
+                print(f"   2. Meeting was created but analysis never ran")
+                print(f"   3. ActivityWatch had no events in time range")
+            
+            # Return empty response gracefully
             return MeetingAnalyticsResponse(
                 meeting_id=meeting_id,
                 total_duration_sec=0,
@@ -235,6 +394,7 @@ async def analyze_meeting_endpoint(
                 user_stats=[]
             )
         
+        # ✅ Aggregation logic (unchanged)
         total_duration_sec = sum(r["duration_seconds"] for r in rows)
         
         cat_durations = defaultdict(float)
@@ -249,39 +409,50 @@ async def analyze_meeting_endpoint(
         sorted_rows = sorted(rows, key=lambda x: x["timestamp"])
         
         for r in sorted_rows:
+            ts = datetime.fromisoformat(r["timestamp"].replace("Z", "+00:00"))
             if r["category"] in ("meeting", "work_related"):
                 if current_start is None:
-                    current_start = datetime.fromisoformat(r["timestamp"].replace("Z", "+00:00"))
+                    current_start = ts
             else:
                 if current_start:
-                    dur = (datetime.fromisoformat(r["timestamp"].replace("Z", "+00:00")) - current_start).total_seconds()
-                    focus_durations.append(dur)
+                    dur = (ts - current_start).total_seconds()
+                    if dur > 0:
+                        focus_durations.append(dur)
                     current_start = None
+        
         if current_start:
             last_ts = datetime.fromisoformat(sorted_rows[-1]["timestamp"].replace("Z", "+00:00"))
-            dur = (last_ts - current_start).total_seconds() + 300
-            focus_durations.append(dur)
+            dur = (last_ts - current_start).total_seconds()
+            if dur > 0:
+                focus_durations.append(dur + 300)
         avg_focus_sec = sum(focus_durations) / len(focus_durations) if focus_durations else 0
         
-        # Interval data (5-min bins) - for timeline visualization
-        interval_data = build_interval_data(rows)
+        interval_data = build_interval_data(rows, meeting_id)
         
-        # ─── Per-user stats ───
         user_stats = []
         users_in_meeting = set(r["user_id"] for r in rows)
         
         for uid in users_in_meeting:
             user_rows = [r for r in rows if r["user_id"] == uid]
             user_total = sum(r["duration_seconds"] for r in user_rows)
-            user_engaged = sum(r["duration_seconds"] for r in user_rows if r["category"] in ("meeting", "work_related"))
+            user_engaged = sum(
+                r["duration_seconds"] for r in user_rows 
+                if r["category"] in ("meeting", "work_related")
+            )
             user_engagement = round(user_engaged / user_total * 100, 1) if user_total > 0 else 0
+            
+            user_cat_durations = defaultdict(float)
+            for r in user_rows:
+                user_cat_durations[r["category"]] += r["duration_seconds"]
             
             user_stats.append({
                 "user_id": uid,
                 "total_duration_sec": user_total,
                 "engagement_percentage": user_engagement,
-                "category_durations": dict(defaultdict(float, {r["category"]: r["duration_seconds"] for r in user_rows}))
+                "category_durations": dict(user_cat_durations)
             })
+        
+        print(f"✅ Returning analytics: {engagement_pct}% engagement, {len(user_stats)} users")
         
         return MeetingAnalyticsResponse(
             meeting_id=meeting_id,
@@ -297,10 +468,11 @@ async def analyze_meeting_endpoint(
         raise
     except Exception as e:
         import traceback
+        print(f"❌ Analysis error: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
-def build_interval_data(rows: List[Dict], bin_minutes: int = 5) -> List[Dict[str, Any]]:
+def build_interval_data(rows: List[Dict], meeting_id: str, bin_minutes: int = 5) -> List[Dict[str, Any]]:
     """Build 5-minute interval data for timeline visualization (all users combined)"""
     if not rows:
         return []
@@ -308,17 +480,27 @@ def build_interval_data(rows: List[Dict], bin_minutes: int = 5) -> List[Dict[str
     from datetime import datetime, timedelta, timezone
     from collections import defaultdict
     
-    # Parse timestamps and find range
-    timestamps = [datetime.fromisoformat(r["timestamp"].replace("Z", "+00:00")) for r in rows]
+
+    timestamps = []
+    for r in rows:
+        ts_str = r["timestamp"]
+        if ts_str.endswith("Z"):
+            ts_str = ts_str[:-1] + "+00:00"
+        timestamps.append(datetime.fromisoformat(ts_str))
+    
+    if not timestamps:
+        return []
+    
     start = min(timestamps)
     end = max(timestamps)
     
-    # Round start to bin boundary
     start_rounded = start.replace(
         minute=(start.minute // bin_minutes) * bin_minutes,
         second=0,
         microsecond=0
     )
+
+    hkt_tz = timezone(timedelta(hours=8))
     
     interval_data = []
     current_bin = start_rounded
@@ -330,32 +512,34 @@ def build_interval_data(rows: List[Dict], bin_minutes: int = 5) -> List[Dict[str
         if bin_total_sec <= 0:
             break
         
-        # Find events overlapping this bin
         bin_events = []
         for r in rows:
-            ev_start = datetime.fromisoformat(r["timestamp"].replace("Z", "+00:00"))
+
+            ev_ts_str = r["timestamp"]
+            if ev_ts_str.endswith("Z"):
+                ev_ts_str = ev_ts_str[:-1] + "+00:00"
+            ev_start = datetime.fromisoformat(ev_ts_str)
             ev_end = ev_start + timedelta(seconds=r["duration_seconds"])
+            
             overlap = compute_overlap(ev_start, ev_end, current_bin, bin_end)
             if overlap > 0:
                 bin_events.append((overlap, r))
         
         if bin_events:
-            # Dominant category/app in this bin
             dominant = max(bin_events, key=lambda x: x[0])
-            overlap_sec, event = dominant
+            _, event = dominant
             engaged_pct = 100 if event["category"] in ("meeting", "work_related") else 0
         else:
-            event = {"app": "Unknown", "category": "other"}
+            event = {"app": "Unknown", "category": "other", "title": "No activity"}
             engaged_pct = 0
         
-        # Convert to HKT for display
-        local_bin = current_bin.astimezone(timezone(timedelta(hours=8)))
+        local_bin = current_bin.astimezone(hkt_tz)
         
         interval_data.append({
-            "time": local_bin.strftime("%H:%M"),
+            "time": local_bin.strftime("%H:%M"),  
             "category": event.get("category", "other"),
             "app": event.get("app", "Unknown"),
-            "title": "—",
+            "title": (event.get("title", "—")[:60] + "...") if len(event.get("title", "")) > 60 else event.get("title", "—"),
             "engaged_pct": engaged_pct
         })
         

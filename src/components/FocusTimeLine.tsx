@@ -95,7 +95,7 @@ const mergeAdjacentSegments = (
       current.endMin === next.startMin &&
       current.isFuture === next.isFuture
     ) {
-      // Extend the current segment
+
       current.endMin = next.endMin;
     } else {
       merged.push(current);
@@ -271,13 +271,11 @@ const FocusTimeline = ({
   cutoffTimeIso,
   meetingDate,
 }: FocusTimelineProps) => {
-  // Only show the most recent 60 minutes (12 × 5‑minute bins)
   const lastHourData =
     intervalData.length > 12
       ? intervalData.slice(intervalData.length - 12)
       : intervalData;
 
-  // If we have a cutoff, only show intervals that have already passed (no bars for future time)
   const cutoffMs =
     cutoffTimeIso && meetingDate
       ? new Date(cutoffTimeIso).getTime()
@@ -339,10 +337,10 @@ const FocusTimeline = ({
 
         <div className="space-y-3">
           {mockParticipants.map((p, pIdx) => {
-            // First, merge all segments for this participant
+
             const mergedSegments = mergeAdjacentSegments(p.segments);
 
-            // Then split into lanes
+
             const meetingSegs = mergedSegments.filter(isMeetingApp);
             const otherSegs = mergedSegments.filter((s) => !isMeetingApp(s));
 

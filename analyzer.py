@@ -132,32 +132,57 @@ def save_event_to_supabase(user_id: str, meeting_id: str, event_data: dict):
             os.getenv("SUPABASE_URL"),      
             os.getenv("SUPABASE_SERVICE_ROLE_KEY")       
         )
-        print(f"Attempting to save: {event_data['app']} ({event_data['category']}) at {event_data['timestamp']}")
 
-        # Ensure only one row per (user_id, meeting_id, timestamp) so the timeline isn't duplicated
-        supabase.table("window_events").delete().match({
-            "user_id": user_id,
-            "meeting_id": meeting_id,
-            "timestamp": event_data["timestamp"],
-        }).execute()
+        ts_input = event_data["timestamp"]
 
-        result = supabase.table("window_events").insert({
+        if not ts_input.endswith("Z") and "+" not in ts_input:
+            local_dt = datetime.fromisoformat(ts_input)
+            hkt_tz = timezone(timedelta(hours=8))
+            local_dt = local_dt.replace(tzinfo=hkt_tz)
+            utc_dt = local_dt.astimezone(timezone.utc)
+            ts_to_store = utc_dt.isoformat().replace("+00:00", "Z")
+        else:
+            ts_to_store = ts_input
+        
+        print(f"Saving: user={user_id[:8]}..., meeting={meeting_id[:8]}..., ts={ts_to_store}, app={event_data['app']}, cat={event_data['category']}")
+
+
+        # supabase.table("window_events").delete().match({
+        #     "user_id": user_id,
+        #     "meeting_id": meeting_id,
+        #     "timestamp": event_data["timestamp"],
+        # }).execute()
+
+        # result = supabase.table("window_events").insert({
+        #     "user_id": user_id,
+        #     "meeting_id": meeting_id,
+        #     "timestamp": event_data["timestamp"],
+        #     "app": event_data["app"],
+        #     "category": event_data["category"],
+        #     "duration_seconds": event_data["duration_seconds"]
+        # }).execute()
+
+        # print(f"Saved: {result}")
+
+        supabase.table("window_events").upsert({
             "user_id": user_id,
-            "meeting_id": meeting_id,
-            "timestamp": event_data["timestamp"],
+            "meeting_id": meeting_id, 
+            "timestamp": ts_to_store,  
             "app": event_data["app"],
             "category": event_data["category"],
             "duration_seconds": event_data["duration_seconds"]
-        }).execute()
+        }, on_conflict="user_id,meeting_id,timestamp").execute()
 
-        print(f"Saved: {result}")
 
     except Exception as e:
         print(f"FAILED to save: {e}")
         raise
 
 
-def analyze_meeting(start_iso: str, end_iso: str, user_id: str, meeting_id: str = "default"):
+def analyze_meeting(start_iso: str, end_iso: str, user_id: str, meeting_id: str):
+    if user_id == meeting_id:
+        print("WARNING: user_id and meeting_id are the same! BUG")
+
     CATEGORIZATION_CACHE.clear()
     start = datetime.fromisoformat(start_iso).astimezone(timezone.utc)
     end = datetime.fromisoformat(end_iso).astimezone(timezone.utc)
@@ -260,9 +285,9 @@ def analyze_meeting(start_iso: str, end_iso: str, user_id: str, meeting_id: str 
         engaged_sec = bin_category_durations.get('meeting', 0) + bin_category_durations.get('work_related', 0)
         engaged_pct = (engaged_sec / bin_total_sec * 100) if bin_total_sec > 0 else 0
 
-        # Convert bin start to local (HKT) for display and storage
         local_bin = current_bin.astimezone(hkt_tz)
         bin_label = local_bin.strftime('%H:%M')
+        utc_bin = local_bin.astimezone(timezone.utc)
 
         interval_data.append({
             'time': bin_label,
@@ -272,9 +297,8 @@ def analyze_meeting(start_iso: str, end_iso: str, user_id: str, meeting_id: str 
             'engaged_pct': engaged_pct
         })
 
-        # Store the local (HKT) time in Supabase so it matches your wall clock
         save_event_to_supabase(user_id, meeting_id, {
-            "timestamp": local_bin.isoformat(),
+            "timestamp": utc_bin.isoformat(),
             "app": dominant_app,
             "category": dominant_cat,
             "duration_seconds": int(bin_total_sec)

@@ -65,33 +65,30 @@ const MeetingList = () => {
     if (!newMeetingName.trim() || !userId) return;
 
     try {
+      const startLocal = `${date}T${startTime}:00`;
+      const endLocal = `${date}T${endTime}:00`;
+
       console.log("📝 Creating meeting:", {
         newMeetingName,
-        date,
-        startTime,
-        endTime,
+        startLocal,
+        endLocal,
         userId,
       });
 
-      const startIso = new Date(`${date}T${startTime}`).toISOString();
-      const endIso = new Date(`${date}T${endTime}`).toISOString();
-
       const result = await createMeeting(
         newMeetingName.trim(),
-        startIso,
-        endIso,
+        startLocal,
+        endLocal,
         userId,
       );
-      console.log("✅ Meeting created:", result);
 
       const joinResult = await joinMeeting(userId, result.meeting_id);
-      console.log("✅ Joined meeting:", joinResult);
 
       setNewMeetingName("");
       setShowForm(false);
       fetchMeetings();
     } catch (err: any) {
-      console.error("❌ Create meeting error:", err);
+      console.error("Create meeting error:", err);
       alert("Failed to create meeting: " + err.message);
     }
   };
@@ -100,7 +97,7 @@ const MeetingList = () => {
     if (!userId) return;
     try {
       await joinMeeting(userId, meetingId);
-      fetchMeetings(); // Refresh to show newly joined meeting
+      fetchMeetings();
     } catch (err: any) {
       console.error("Failed to join:", err);
     }
@@ -290,16 +287,22 @@ const MeetingList = () => {
                     <td className="px-4 py-3 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1.5">
                         <Calendar className="h-3.5 w-3.5" />
-                        {new Date(m.start_time).toLocaleDateString()}
+                        {new Date(m.start_time).toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
                         <Clock className="h-3.5 w-3.5 ml-2" />
-                        {new Date(m.start_time).toLocaleTimeString([], {
+                        {new Date(m.start_time).toLocaleTimeString(undefined, {
                           hour: "2-digit",
                           minute: "2-digit",
+                          hour12: false, // Use 24-hour format
                         })}{" "}
                         –
-                        {new Date(m.end_time).toLocaleTimeString([], {
+                        {new Date(m.end_time).toLocaleTimeString(undefined, {
                           hour: "2-digit",
                           minute: "2-digit",
+                          hour12: false,
                         })}
                       </span>
                     </td>

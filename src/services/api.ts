@@ -38,7 +38,6 @@ export interface MeetingAnalytics {
   }>;
 }
 
-// ─── User Endpoints ───
 export const registerUser = async (userId: string) => {
   const res = await fetch(`${API_BASE}/users/register`, {
     method: "POST",
@@ -49,7 +48,9 @@ export const registerUser = async (userId: string) => {
   return res.json();
 };
 
-export const getUserMeetings = async (userId: string): Promise<UserMeeting[]> => {
+export const getUserMeetings = async (
+  userId: string,
+): Promise<UserMeeting[]> => {
   const res = await fetch(`${API_BASE}/users/${userId}/meetings`);
   if (!res.ok) throw new Error("Failed to fetch meetings");
   return res.json();
@@ -65,7 +66,12 @@ export const joinMeeting = async (userId: string, meetingId: string) => {
   return res.json();
 };
 
-export const createMeeting = async (name: string, startTime: string, endTime: string, hostUserId: string) => {
+export const createMeeting = async (
+  name: string,
+  startTime: string,
+  endTime: string,
+  hostUserId: string,
+) => {
   const res = await fetch(`${API_BASE}/meetings`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -86,7 +92,6 @@ export const getMeeting = async (meetingId: string): Promise<Meeting> => {
   return res.json();
 };
 
-
 export const analyzeMeeting = async (params: {
   meeting_id: string;
   start_time?: string;
@@ -95,15 +100,14 @@ export const analyzeMeeting = async (params: {
   const searchParams = new URLSearchParams();
   if (params.start_time) searchParams.set("start_time", params.start_time);
   if (params.end_time) searchParams.set("end_time", params.end_time);
-  
+
   const res = await fetch(
     `${API_BASE}/meetings/${params.meeting_id}/analyze?${searchParams}`,
-    { method: "POST" }
+    { method: "POST" },
   );
   if (!res.ok) throw new Error("Analysis failed");
   return res.json() as Promise<MeetingAnalytics>;
 };
-
 
 export const getMeetingFocus = async (params: {
   user_id: string;
@@ -115,8 +119,37 @@ export const getMeetingFocus = async (params: {
   if (params.meeting_id) searchParams.set("meeting_id", params.meeting_id);
   if (params.start_time) searchParams.set("start_time", params.start_time);
   if (params.end_time) searchParams.set("end_time", params.end_time);
-  
+
   const res = await fetch(`${API_BASE}/meeting-focus?${searchParams}`);
   if (!res.ok) throw new Error("Failed to fetch focus data");
+  return res.json();
+};
+
+// services/api.ts - add this function
+
+export const triggerMeetingAnalysis = async (params: {
+  meeting_id: string;
+  user_id: string;
+  start_time: string;
+  end_time: string;
+}) => {
+  const res = await fetch(
+    `${API_BASE}/meetings/${params.meeting_id}/trigger-analysis`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: params.user_id,
+        start_time: params.start_time,
+        end_time: params.end_time,
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || "Failed to trigger analysis");
+  }
+
   return res.json();
 };

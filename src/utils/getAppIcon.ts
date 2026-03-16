@@ -33,7 +33,7 @@ const SIMPLE_ICONS_MAP: Record<string, string> = {
   skype: "skype",
   facetime: "facetime",
 
-  // Social Media
+
   twitter: "x",
   x: "x",
   facebook: "facebook",

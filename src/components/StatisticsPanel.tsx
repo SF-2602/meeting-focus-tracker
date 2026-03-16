@@ -116,7 +116,6 @@ const StatisticsPanel = ({ meetingData }: StatisticsPanelProps) => {
     });
   }
 
-  // Calculate focus streaks from filtered data
   let focusDurations: number[] = [];
   let currentFocusStart: number | null = null;
 

@@ -19,10 +19,9 @@ const Login = () => {
     setError(null);
     
     try {
-      // ✅ Register user in Supabase
+
       await registerUser(trimmedId);
       
-      // ✅ Navigate to meetings with userId in state
       navigate("/meetings", { 
         state: { userId: trimmedId },
         replace: true 
