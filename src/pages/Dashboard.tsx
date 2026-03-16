@@ -39,9 +39,7 @@ const getDefaultRange = () => {
   const startTime = roundTimeToHalfHour(
     `${oneHourAgo.getHours()}:${oneHourAgo.getMinutes()}`,
   );
-  const endTime = roundTimeToHalfHour(
-    `${now.getHours()}:${now.getMinutes()}`,
-  );
+  const endTime = roundTimeToHalfHour(`${now.getHours()}:${now.getMinutes()}`);
   return { meetingDate, startTime, endTime };
 };
 
@@ -61,7 +59,7 @@ const rangeToIso = (
 
 const defaults = getDefaultRange();
 
-const Index = () => {
+const Dashboard = () => {
   const [meetingData, setMeetingData] = useState<MeetingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +74,11 @@ const Index = () => {
     startTime: string;
     endTime: string;
   }) => {
-    const { meetingDate: d, startTime: s, endTime: e } = opts ?? {
+    const {
+      meetingDate: d,
+      startTime: s,
+      endTime: e,
+    } = opts ?? {
       meetingDate,
       startTime,
       endTime,
@@ -169,9 +171,9 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <div className="max-w-5xl mx-auto px-6 py-10">
         <div className="mb-6 p-4 rounded-xl border bg-card text-card-foreground shadow-sm">
-          <p className="text-sm font-medium text-muted-foreground mb-3">
+          {/* <p className="text-sm font-medium text-muted-foreground mb-3">
             Time range (rounded to :00 or :30)
-          </p>
+          </p> */}
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">Date</span>
@@ -189,7 +191,10 @@ const Index = () => {
                 step="1800"
                 value={startTime}
                 onChange={handleStartTimeChange}
-                onBlur={(e) => e.target.value && setStartTime(roundTimeToHalfHour(e.target.value))}
+                onBlur={(e) =>
+                  e.target.value &&
+                  setStartTime(roundTimeToHalfHour(e.target.value))
+                }
                 className="rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </label>
@@ -200,7 +205,10 @@ const Index = () => {
                 step="1800"
                 value={endTime}
                 onChange={handleEndTimeChange}
-                onBlur={(e) => e.target.value && setEndTime(roundTimeToHalfHour(e.target.value))}
+                onBlur={(e) =>
+                  e.target.value &&
+                  setEndTime(roundTimeToHalfHour(e.target.value))
+                }
                 className="rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </label>
@@ -228,9 +236,7 @@ const Index = () => {
             const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
             const endDateTime = new Date(`${meetingDate}T${endTime}`);
             const cutoff =
-              meetingDate === todayStr && now < endDateTime
-                ? now
-                : endDateTime;
+              meetingDate === todayStr && now < endDateTime ? now : endDateTime;
             return cutoff.toISOString();
           })()}
         />
@@ -245,4 +251,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default Dashboard;
