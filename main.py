@@ -56,6 +56,7 @@ class MeetingAnalyticsResponse(BaseModel):
     category_durations: Dict[str, float]
     avg_focus_seconds: float
     interval_data: List[Dict[str, Any]]
+    user_interval_data: Dict[str, List[Dict[str, Any]]]
     user_stats: List[Dict[str, Any]]
 
 class TriggerAnalysisRequest(BaseModel):
@@ -396,8 +397,8 @@ async def analyze_meeting_endpoint(
             end_time = hkt_to_utc(meeting.data["end_time"])
         else:
 
-            print(f"🔄 Converting query params from HKT → UTC:")
-            print(f"   Input: start={start_time}, end={end_time}")
+            print(f"     Converting query params from HKT → UTC:")
+            print(f"     Input: start={start_time}, end={end_time}")
             
             start_time = hkt_to_utc(start_time)
             end_time = hkt_to_utc(end_time)
@@ -407,10 +408,10 @@ async def analyze_meeting_endpoint(
         if not start_time or not end_time:
             raise HTTPException(status_code=400, detail="Invalid time range format")
         
-        print(f"🔍 Querying window_events:")
-        print(f"   meeting_id: {meeting_id}")
-        print(f"   timestamp >= {start_time} (UTC)")
-        print(f"   timestamp <= {end_time} (UTC)")
+        print(f"    Querying window_events:")
+        print(f"    meeting_id: {meeting_id}")
+        print(f"    timestamp >= {start_time} (UTC)")
+        print(f"    timestamp <= {end_time} (UTC)")
         
         query = supabase_client.table("window_events").select("*").eq("meeting_id", meeting_id)
         
@@ -423,28 +424,10 @@ async def analyze_meeting_endpoint(
         result = query.execute()
         rows = result.data or []
         
-        print(f"📊 Found {len(rows)} window_events for meeting {meeting_id}")
-        
+        print(f"     Found {len(rows)} window_events for meeting {meeting_id}")
+
         if not rows:
-            print(f"     No rows found with time filter. Checking raw data...")
-            
-            raw_check = supabase_client.table("window_events").select("*").eq("meeting_id", meeting_id).limit(10).execute()
-            raw_rows = raw_check.data or []
-            
-            if raw_rows:
-                print(f"🔍 Found {len(raw_rows)} rows for meeting_id={meeting_id} (ignoring time):")
-                for r in raw_rows:
-                    ts = r.get('timestamp', 'N/A')
-                    user = r.get('user_id', 'N/A')
-                    cat = r.get('category', 'N/A')
-                    print(f"   - ts={ts}, user={str(user)[:8]}..., cat={cat}")
-            else:
-                print(f"    No rows at all for meeting_id={meeting_id} in window_events!")
-                print(f"    Possible causes:")
-                print(f"   1. analyzer.py saved with wrong meeting_id")
-                print(f"   2. Meeting was created but analysis never ran")
-                print(f"   3. ActivityWatch had no events in time range")
-            
+            print(f"⚠️ No rows found for meeting_id={meeting_id} in time range")
             return MeetingAnalyticsResponse(
                 meeting_id=meeting_id,
                 total_duration_sec=0,
@@ -452,10 +435,20 @@ async def analyze_meeting_endpoint(
                 category_durations={},
                 avg_focus_seconds=0.0,
                 interval_data=[],
+                user_interval_data={},  
                 user_stats=[]
             )
-        
+
+        users_in_meeting = set(r["user_id"] for r in rows)
+        print(f" Found {len(users_in_meeting)} unique users in meeting")
+
+        user_interval_data = {}
+        for uid in users_in_meeting:
+            user_rows = [r for r in rows if r["user_id"] == uid]
+            user_interval_data[uid] = build_interval_data(user_rows, meeting_id)
+
         total_duration_sec = sum(r["duration_seconds"] for r in rows)
+        
         
         cat_durations = defaultdict(float)
         for r in rows:
@@ -512,7 +505,7 @@ async def analyze_meeting_endpoint(
                 "category_durations": dict(user_cat_durations)
             })
         
-        print(f" Returning analytics: {engagement_pct}% engagement, {len(user_stats)} users")
+        print(f"    Returning analytics: {engagement_pct}% engagement, {len(user_stats)} users")
         
         return MeetingAnalyticsResponse(
             meeting_id=meeting_id,
@@ -521,6 +514,7 @@ async def analyze_meeting_endpoint(
             category_durations=dict(cat_durations),
             avg_focus_seconds=round(avg_focus_sec),
             interval_data=interval_data,
+            user_interval_data=user_interval_data,
             user_stats=user_stats
         )
         

@@ -16,18 +16,29 @@ interface ActivitySegment {
   iconUrl: string | null;
   baseHour: number;
   baseMinute: number;
-  /** If true, this bin is in the future — show empty, no fill */
   isFuture?: boolean;
 }
 
 interface Participant {
+  user_id: string;
   name: string;
   avatar: string;
-  improved: boolean;
+  improved?: boolean;
+  engagement_percentage: number;
   segments: ActivitySegment[];
 }
 
 interface FocusTimelineProps {
+  userIntervalData?: Record<
+    string,
+    Array<{
+      time: string;
+      category: string;
+      app: string;
+      title: string;
+      engaged_pct: number;
+    }>
+  >;
   intervalData: Array<{
     time: string;
     category: string;
@@ -35,10 +46,14 @@ interface FocusTimelineProps {
     title: string;
     engaged_pct: number;
   }>;
+  userStats?: Array<{
+    user_id: string;
+    engagement_percentage: number;
+    total_duration_sec: number;
+    category_durations: Record<string, number>;
+  }>;
   meetingStartTime?: string;
-  /** ISO string; bins that end after this are shown empty (not yet passed) */
   cutoffTimeIso?: string;
-  /** YYYY-MM-DD for the meeting date (local), used with interval time to detect future bins */
   meetingDate?: string;
 }
 
@@ -95,7 +110,6 @@ const mergeAdjacentSegments = (
       current.endMin === next.startMin &&
       current.isFuture === next.isFuture
     ) {
-
       current.endMin = next.endMin;
     } else {
       merged.push(current);
@@ -266,11 +280,51 @@ const generateTimeLabels = (
 };
 
 const FocusTimeline = ({
+  userIntervalData,
   intervalData,
+  userStats,
   meetingStartTime,
   cutoffTimeIso,
   meetingDate,
 }: FocusTimelineProps) => {
+  const participants: Participant[] = [];
+
+  if (userIntervalData && userStats) {
+    // ✅ Preferred: per-user interval data from backend
+    Object.entries(userIntervalData).forEach(([userId, userData]) => {
+      const stats = userStats.find((s) => s.user_id === userId);
+      const segments = convertIntervalDataToSegments(
+        userData,
+        meetingStartTime,
+        meetingDate,
+        cutoffTimeIso,
+      );
+      participants.push({
+        user_id: userId,
+        name: `User ${userId.slice(0, 6)}…`,
+        avatar: userId.slice(0, 2).toUpperCase(),
+        engagement_percentage: stats?.engagement_percentage || 0,
+        segments: mergeAdjacentSegments(segments),
+      });
+    });
+  } else if (intervalData && userStats) {
+    const baseSegments = convertIntervalDataToSegments(
+      intervalData,
+      meetingStartTime,
+      meetingDate,
+      cutoffTimeIso,
+    );
+    userStats.forEach((stats) => {
+      participants.push({
+        user_id: stats.user_id,
+        name: `User ${stats.user_id.slice(0, 6)}…`,
+        avatar: stats.user_id.slice(0, 2).toUpperCase(),
+        engagement_percentage: stats.engagement_percentage,
+        segments: mergeAdjacentSegments(baseSegments),
+      });
+    });
+  }
+
   const lastHourData =
     intervalData.length > 12
       ? intervalData.slice(intervalData.length - 12)
@@ -297,36 +351,46 @@ const FocusTimeline = ({
     cutoffTimeIso,
   );
 
-  const mockParticipants: Participant[] = [
-    {
-      name: "You",
-      avatar: "Y",
-      improved: false,
-      segments: currentUserSegments,
-    },
-  ];
+  if (participants.length === 0) {
+    return (
+      <div className="glass-card rounded-2xl p-6 text-center text-muted-foreground">
+        No participant timeline data available.
+      </div>
+    );
+  }
 
-  const timeLabels = generateTimeLabels(displayedData);
+  const firstSegments = participants[0]?.segments || [];
+  const timeLabels =
+    firstSegments.length > 0
+      ? Array.from({ length: 13 }, (_, i) => {
+          const totalMin =
+            firstSegments[0].baseHour * 60 +
+            firstSegments[0].baseMinute +
+            i * 5;
+          const h = Math.floor(totalMin / 60) % 24;
+          const m = totalMin % 60;
+          return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+        })
+      : [];
 
   return (
     <TooltipProvider>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className="glass-card rounded-2xl p-6 mb-6"
+        className="glass-card rounded-2xl p-6 mb-6 overflow-x-auto"
       >
-        <h2 className="text-lg font-semibold mb-4">Focus Timeline</h2>
+        <h2 className="text-lg font-semibold mb-4">Team Focus Timeline</h2>
 
-        {/* Column headers */}
-        <div className="flex mb-1">
-          <div className="w-32 shrink-0" />
-          <div className="w-16 shrink-0" />
-          <div className="flex-1 relative h-5">
+        {/* Time labels header */}
+        <div className="flex mb-2 pl-62">
+          {" "}
+          {/* offset for avatar+name column */}
+          <div className="flex-1 relative h-4">
             {timeLabels.map((label, i) => (
               <span
-                key={label}
-                className="absolute text-[10px] text-muted-foreground -translate-x-1/2"
+                key={i}
+                className="absolute text-[9px] text-muted-foreground -translate-x-1/2"
                 style={{ left: `${i * (100 / timeLabels.length)}%` }}
               >
                 {label}
@@ -335,53 +399,60 @@ const FocusTimeline = ({
           </div>
         </div>
 
-        <div className="space-y-3">
-          {mockParticipants.map((p, pIdx) => {
-
-            const mergedSegments = mergeAdjacentSegments(p.segments);
-
-
-            const meetingSegs = mergedSegments.filter(isMeetingApp);
-            const otherSegs = mergedSegments.filter((s) => !isMeetingApp(s));
+        {/* Participant rows */}
+        <div className="space-y-2.5">
+          {participants.map((p, pIdx) => {
+            const meetingSegs = p.segments.filter(
+              (s) => s.category === "meeting",
+            );
+            const otherSegs = p.segments.filter(
+              (s) => s.category !== "meeting",
+            );
 
             return (
               <motion.div
-                key={p.name}
-                initial={{ opacity: 0, x: -20 }}
+                key={p.user_id}
+                initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 + pIdx * 0.1 }}
-                className="flex items-center"
+                transition={{ delay: 0.1 * pIdx }}
+                className="flex items-start group"
               >
-                {/* Name + avatar */}
-                <div className="w-32 shrink-0 flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
-                    {p.avatar}
+                {/* Avatar + Name + Engagement */}
+                <div className="w-44 shrink-0 pr-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center text-xs font-semibold text-primary">
+                      {p.avatar}
+                    </div>
+                    <span className="text-sm font-medium truncate">
+                      {p.name}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm font-medium">{p.name}</span>
-                    {p.improved && (
-                      <span
-                        className="text-xs"
-                        title="Improved since last meeting"
-                      >
-                        🏆
-                      </span>
-                    )}
+                  <div className="pl-9">
+                    <span
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        p.engagement_percentage >= 70
+                          ? "bg-green-500/15 text-green-700"
+                          : p.engagement_percentage >= 40
+                            ? "bg-yellow-500/15 text-yellow-700"
+                            : "bg-red-500/15 text-red-700"
+                      }`}
+                    >
+                      {p.engagement_percentage}% engaged
+                    </span>
                   </div>
                 </div>
 
+                {/* Timeline lanes */}
                 <div className="flex-1 flex flex-col gap-0.5">
-                  {/* Lane 1: Meeting */}
+                  {/* Meeting lane */}
                   <div className="flex items-center">
-                    <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-2">
+                    <div className="w-14 shrink-0 text-[9px] text-muted-foreground text-right pr-2">
                       Meeting
                     </div>
-                    <div className="flex-1 relative h-7 bg-focus-blue/10 rounded-md overflow-hidden">
-                      {" "}
-                      {/* Changed from bg-focus-green/10 */}
+                    <div className="flex-1 relative h-6 bg-focus-blue/10 rounded overflow-hidden">
                       {meetingSegs.map((seg, sIdx) => (
                         <SegmentBar
-                          key={`${pIdx}-meeting-${sIdx}`}
+                          key={`mtg-${p.user_id}-${sIdx}`}
                           seg={seg}
                           pIdx={pIdx}
                           sIdx={sIdx}
@@ -390,15 +461,15 @@ const FocusTimeline = ({
                       ))}
                     </div>
                   </div>
-                  {/* Lane 2: Other */}
+                  {/* Other apps lane */}
                   <div className="flex items-center">
-                    <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-2">
+                    <div className="w-14 shrink-0 text-[9px] text-muted-foreground text-right pr-2">
                       Other
                     </div>
-                    <div className="flex-1 relative h-7 bg-focus-blue/10 rounded-md overflow-hidden">
+                    <div className="flex-1 relative h-6 bg-focus-blue/10 rounded overflow-hidden">
                       {otherSegs.map((seg, sIdx) => (
                         <SegmentBar
-                          key={`${pIdx}-other-${sIdx}`}
+                          key={`other-${p.user_id}-${sIdx}`}
                           seg={seg}
                           pIdx={pIdx}
                           sIdx={sIdx + meetingSegs.length}
@@ -413,22 +484,22 @@ const FocusTimeline = ({
           })}
         </div>
 
-        <div className="flex flex-wrap gap-4 mt-5 text-xs text-muted-foreground">
+        {/* Legend */}
+        <div className="flex flex-wrap gap-3 mt-5 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-focus-blue" /> Meeting
+            <span className="h-2 w-2 rounded-sm bg-focus-blue" /> Meeting
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-focus-purple" /> Work
+            <span className="h-2 w-2 rounded-sm bg-focus-purple" /> Work
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-focus-amber" /> Browser
+            <span className="h-2 w-2 rounded-sm bg-focus-amber" /> Browser
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-focus-red" /> Instant
-            Message
+            <span className="h-2 w-2 rounded-sm bg-focus-red" /> Chat
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-muted" /> Other
+            <span className="h-2 w-2 rounded-sm bg-muted" /> Other
           </span>
         </div>
       </motion.div>

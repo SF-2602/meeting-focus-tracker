@@ -269,7 +269,9 @@ const Dashboard = () => {
             />
 
             <FocusTimeline
+              userIntervalData={analytics?.user_interval_data}
               intervalData={analytics.interval_data}
+              userStats={analytics?.user_stats}
               meetingDate={new Date(startTime).toISOString().slice(0, 10)}
               cutoffTimeIso={endTime}
             />

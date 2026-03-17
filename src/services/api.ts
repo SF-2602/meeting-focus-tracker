@@ -45,6 +45,16 @@ export interface MeetingAnalytics {
     engagement_percentage: number;
     category_durations: Record<string, number>;
   }>;
+  user_interval_data?: Record<
+    string,
+    Array<{
+      time: string;
+      category: string;
+      app: string;
+      title: string;
+      engaged_pct: number;
+    }>
+  >;
 }
 
 export const registerUser = async (userId: string) => {

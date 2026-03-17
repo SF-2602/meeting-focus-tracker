@@ -481,7 +481,7 @@
                           className={`px-2 py-0.5 rounded-full text-xs ${
                             m.role === "host"
                               ? "bg-primary/10 text-primary"
-                              : "bg-muted text-muted-foreground"
+                              : "bg-primary text-white"
                           }`}
                         >
                           {m.role}
