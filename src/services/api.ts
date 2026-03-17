@@ -17,6 +17,15 @@ export interface UserMeeting {
   joined_at: string;
 }
 
+export interface PublicMeeting {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  participant_count: number;
+  is_joined: boolean;
+}
+
 export interface MeetingAnalytics {
   meeting_id: string;
   total_duration_sec: number;
@@ -125,8 +134,6 @@ export const getMeetingFocus = async (params: {
   return res.json();
 };
 
-// services/api.ts - add this function
-
 export const triggerMeetingAnalysis = async (params: {
   meeting_id: string;
   user_id: string;
@@ -151,5 +158,18 @@ export const triggerMeetingAnalysis = async (params: {
     throw new Error(error.detail || "Failed to trigger analysis");
   }
 
+  return res.json();
+};
+
+export const getPublicMeetings = async (
+  userId?: string,
+): Promise<PublicMeeting[]> => {
+  const url = new URL(`${API_BASE}/meetings/public`);
+  if (userId) {
+    url.searchParams.set("user_id", userId);
+  }
+
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error("Failed to fetch public meetings");
   return res.json();
 };

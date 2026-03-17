@@ -246,7 +246,7 @@ def analyze_meeting(start_iso: str, end_iso: str, user_id: str, meeting_id: str)
 
     def is_within_allowed_range(dt: datetime, ranges: list[tuple[int, int]] | None) -> bool:
         if ranges is None:
-            return True  # No filtering = process everything
+            return True
         hour = dt.hour
         for start_h, end_h in ranges:
 

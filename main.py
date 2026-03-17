@@ -63,6 +63,14 @@ class TriggerAnalysisRequest(BaseModel):
     start_time: str  
     end_time: str
 
+class PublicMeetingResponse(BaseModel):
+    id: str
+    name: str
+    start_time: str
+    end_time: str
+    participant_count: int
+    is_joined: bool = False
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -95,28 +103,24 @@ async def trigger_analysis_endpoint(
             supabase_client.table("users").insert({"id": req.user_id}).execute()
             print(f"Auto-registered user {req.user_id}")
         
-        # ✅ Convert local time strings to UTC for analyzer
         from datetime import datetime, timezone, timedelta
         
-        # Parse as local time (assume HKT = UTC+8)
         hkt_tz = timezone(timedelta(hours=8))
         start_local = datetime.fromisoformat(req.start_time.replace("Z", ""))
         end_local = datetime.fromisoformat(req.end_time.replace("Z", ""))
         
-        # Add timezone info then convert to UTC
         start_utc = start_local.replace(tzinfo=hkt_tz).astimezone(timezone.utc).isoformat()
         end_utc = end_local.replace(tzinfo=hkt_tz).astimezone(timezone.utc).isoformat()
         
         print(f"  Converted to UTC: {start_utc} to {end_utc}")
         
-        # ✅ Call analyzer.py with CORRECT meeting_id (not user_id!)
         from analyzer import analyze_meeting
         
         result = analyze_meeting(
             start_iso=start_utc,
             end_iso=end_utc,
-            user_id=req.user_id,      # ✅ User UUID
-            meeting_id=meeting_id      # ✅ Meeting UUID (from URL)
+            user_id=req.user_id,      
+            meeting_id=meeting_id     
         )
         
         if result[0] is None:
@@ -256,6 +260,74 @@ async def create_meeting(req: MeetingCreateRequest):
         print(f"Meeting creation error: {e}")
         raise HTTPException(status_code=500, detail=f"Creation failed: {str(e)}")
 
+@app.get("/meetings/public", response_model=List[PublicMeetingResponse])
+async def get_public_meetings(user_id: Optional[str] = Query(None)):
+    """
+    List all meetings (optionally mark which ones user has joined)
+    """
+    try:
+        print(f"🔍 GET /meetings/public called with user_id={user_id}")
+        
+        meetings_result = supabase_client.table("meetings").select("""
+            id, meetings, start_time, end_time
+        """).order("start_time", desc=True).limit(100).execute()
+        
+        meetings_data = meetings_result.data or []
+        print(f"     Found {len(meetings_data)} meetings in database")
+        
+
+        if not meetings_data:
+            return []
+
+        meeting_ids = [m["id"] for m in meetings_data]
+        
+        count_map = defaultdict(int)
+        if meeting_ids:
+            counts_result = supabase_client.table("user_meetings").select(
+                "meeting_id"
+            ).in_("meeting_id", meeting_ids).execute()
+            
+            counts_data = counts_result.data or []
+            for row in counts_data:
+                mid = row.get("meeting_id")
+                if mid:
+                    count_map[mid] += 1
+        
+        joined_map = {}
+        if user_id:
+            print(f"🔍 Checking joined meetings for user: {user_id}")
+            joined_result = supabase_client.table("user_meetings").select(
+                "meeting_id"
+            ).eq("user_id", user_id).in_("meeting_id", meeting_ids).execute()
+            
+            joined_data = joined_result.data or []
+            for row in joined_data:
+                mid = row.get("meeting_id")
+                if mid:
+                    joined_map[mid] = True
+            print(f" User has joined {len(joined_map)} meetings")
+        
+
+        meetings = []
+        for m in meetings_data: 
+            meetings.append({
+                "id": m["id"],
+                "name": m["meetings"], 
+                "start_time": m["start_time"],
+                "end_time": m["end_time"],
+                "participant_count": count_map.get(m["id"], 0),
+                "is_joined": joined_map.get(m["id"], False)
+            })
+        
+        print(f" Returning {len(meetings)} public meetings")
+        return meetings
+        
+    except Exception as e:
+        import traceback
+        print(f" Error in get_public_meetings: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to fetch meetings: {str(e)}")
+    
 @app.get("/meetings/{meeting_id}", response_model=MeetingResponse)
 async def get_meeting(meeting_id: str):
     """Get meeting details with participant count"""
@@ -295,41 +367,35 @@ async def analyze_meeting_endpoint(
     """
     try:
         from datetime import datetime, timezone, timedelta
-        
-        # ✅ Helper: Convert local HKT time string → UTC ISO string (defined ONCE)
+
         def hkt_to_utc(ts: Optional[str]) -> Optional[str]:
             if not ts:
                 return None
-            
-            # Clean malformed timestamps (extra :00)
+
             ts = re.sub(r'(:\d{2}:\d{2}):\d{2}$', r'\1', ts)
-            
-            # If already has timezone info, return as-is
+
             if ts.endswith('Z') or '+' in ts[-6:]:
                 return ts
             
             try:
-                # Parse as naive datetime, assume HKT (UTC+8)
                 dt = datetime.fromisoformat(ts)
                 hkt_tz = timezone(timedelta(hours=8))
                 dt = dt.replace(tzinfo=hkt_tz)
-                # Convert to UTC for Supabase query
+
                 return dt.astimezone(timezone.utc).isoformat()
             except ValueError as e:
                 print(f"⚠️ Failed to parse timestamp '{ts}': {e}")
                 return None
-        
-        # Get meeting time range from DB if query params not provided
+
         if not start_time or not end_time:
             meeting = supabase_client.table("meetings").select("start_time", "end_time").eq("id", meeting_id).single().execute()
             if not meeting.data:
                 raise HTTPException(status_code=404, detail="Meeting not found")
             
-            # Meeting times stored as local (no TZ), convert to UTC for query
             start_time = hkt_to_utc(meeting.data["start_time"])
             end_time = hkt_to_utc(meeting.data["end_time"])
         else:
-            # Convert frontend's local time params to UTC
+
             print(f"🔄 Converting query params from HKT → UTC:")
             print(f"   Input: start={start_time}, end={end_time}")
             
@@ -341,7 +407,6 @@ async def analyze_meeting_endpoint(
         if not start_time or not end_time:
             raise HTTPException(status_code=400, detail="Invalid time range format")
         
-        # Fetch window_events for this meeting with UTC timestamps
         print(f"🔍 Querying window_events:")
         print(f"   meeting_id: {meeting_id}")
         print(f"   timestamp >= {start_time} (UTC)")
@@ -360,30 +425,26 @@ async def analyze_meeting_endpoint(
         
         print(f"📊 Found {len(rows)} window_events for meeting {meeting_id}")
         
-        # 🔍 Debug: If no rows, show what's actually in the table
         if not rows:
-            print(f"⚠️ No rows found with time filter. Checking raw data...")
+            print(f"     No rows found with time filter. Checking raw data...")
             
-            # ✅ CORRECT: Access .data property of response
             raw_check = supabase_client.table("window_events").select("*").eq("meeting_id", meeting_id).limit(10).execute()
             raw_rows = raw_check.data or []
             
             if raw_rows:
                 print(f"🔍 Found {len(raw_rows)} rows for meeting_id={meeting_id} (ignoring time):")
                 for r in raw_rows:
-                    # ✅ Safe access - r is always a dict when using select("*")
                     ts = r.get('timestamp', 'N/A')
                     user = r.get('user_id', 'N/A')
                     cat = r.get('category', 'N/A')
                     print(f"   - ts={ts}, user={str(user)[:8]}..., cat={cat}")
             else:
-                print(f"❌ No rows at all for meeting_id={meeting_id} in window_events!")
-                print(f"💡 Possible causes:")
+                print(f"    No rows at all for meeting_id={meeting_id} in window_events!")
+                print(f"    Possible causes:")
                 print(f"   1. analyzer.py saved with wrong meeting_id")
                 print(f"   2. Meeting was created but analysis never ran")
                 print(f"   3. ActivityWatch had no events in time range")
             
-            # Return empty response gracefully
             return MeetingAnalyticsResponse(
                 meeting_id=meeting_id,
                 total_duration_sec=0,
@@ -394,7 +455,6 @@ async def analyze_meeting_endpoint(
                 user_stats=[]
             )
         
-        # ✅ Aggregation logic (unchanged)
         total_duration_sec = sum(r["duration_seconds"] for r in rows)
         
         cat_durations = defaultdict(float)
@@ -452,7 +512,7 @@ async def analyze_meeting_endpoint(
                 "category_durations": dict(user_cat_durations)
             })
         
-        print(f"✅ Returning analytics: {engagement_pct}% engagement, {len(user_stats)} users")
+        print(f" Returning analytics: {engagement_pct}% engagement, {len(user_stats)} users")
         
         return MeetingAnalyticsResponse(
             meeting_id=meeting_id,
@@ -468,7 +528,7 @@ async def analyze_meeting_endpoint(
         raise
     except Exception as e:
         import traceback
-        print(f"❌ Analysis error: {e}")
+        print(f" Analysis error: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
@@ -546,6 +606,7 @@ def build_interval_data(rows: List[Dict], meeting_id: str, bin_minutes: int = 5)
         current_bin = bin_end
     
     return interval_data
+
 
 def compute_overlap(start1, end1, start2, end2):
     """Calculate overlap in seconds between two time ranges"""
