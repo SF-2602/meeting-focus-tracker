@@ -181,7 +181,7 @@ const convertIntervalDataToSegments = (
   });
 };
 
-const isMeetingApp = (seg: ActivitySegment) => seg.category === "meeting";
+// const isMeetingApp = (seg: ActivitySegment) => seg.category === "meeting";
 
 const SegmentBar = ({
   seg,
@@ -264,20 +264,20 @@ const SegmentBar = ({
   );
 };
 
-const generateTimeLabels = (
-  intervalData: FocusTimelineProps["intervalData"],
-) => {
-  if (!intervalData.length) {
-    return Array.from({ length: 13 }, (_, i) => {
-      const min = i * 5;
-      const h = 13 + Math.floor(min / 60);
-      const m = min % 60;
-      return `${h}:${m.toString().padStart(2, "0")}`;
-    });
-  }
+// const generateTimeLabels = (
+//   intervalData: FocusTimelineProps["intervalData"],
+// ) => {
+//   if (!intervalData.length) {
+//     return Array.from({ length: 13 }, (_, i) => {
+//       const min = i * 5;
+//       const h = 13 + Math.floor(min / 60);
+//       const m = min % 60;
+//       return `${h}:${m.toString().padStart(2, "0")}`;
+//     });
+//   }
 
-  return intervalData.map((item) => item.time);
-};
+//   return intervalData.map((item) => item.time);
+// };
 
 const FocusTimeline = ({
   userIntervalData,
@@ -325,31 +325,31 @@ const FocusTimeline = ({
     });
   }
 
-  const lastHourData =
-    intervalData.length > 12
-      ? intervalData.slice(intervalData.length - 12)
-      : intervalData;
+  // const lastHourData =
+  //   intervalData.length > 12
+  //     ? intervalData.slice(intervalData.length - 12)
+  //     : intervalData;
 
-  const cutoffMs =
-    cutoffTimeIso && meetingDate
-      ? new Date(cutoffTimeIso).getTime()
-      : undefined;
+  // const cutoffMs =
+  //   cutoffTimeIso && meetingDate
+  //     ? new Date(cutoffTimeIso).getTime()
+  //     : undefined;
 
-  const displayedData =
-    cutoffMs != null && meetingDate
-      ? lastHourData.filter((item) => {
-          const binEnd = new Date(`${meetingDate}T${item.time}`);
-          binEnd.setMinutes(binEnd.getMinutes() + 5);
-          return binEnd.getTime() <= cutoffMs;
-        })
-      : lastHourData;
+  // const displayedData =
+  //   cutoffMs != null && meetingDate
+  //     ? lastHourData.filter((item) => {
+  //         const binEnd = new Date(`${meetingDate}T${item.time}`);
+  //         binEnd.setMinutes(binEnd.getMinutes() + 5);
+  //         return binEnd.getTime() <= cutoffMs;
+  //       })
+  //     : lastHourData;
 
-  const currentUserSegments = convertIntervalDataToSegments(
-    displayedData,
-    meetingStartTime,
-    meetingDate,
-    cutoffTimeIso,
-  );
+  // const currentUserSegments = convertIntervalDataToSegments(
+  //   displayedData,
+  //   meetingStartTime,
+  //   meetingDate,
+  //   cutoffTimeIso,
+  // );
 
   if (participants.length === 0) {
     return (

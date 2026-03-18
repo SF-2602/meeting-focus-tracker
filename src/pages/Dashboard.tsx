@@ -23,13 +23,13 @@ const Dashboard = () => {
 
   const state = location.state as Partial<DashboardState> | null;
 
-  const [meetingId, setMeetingId] = useState<string>(state?.meetingId || "");
-  const [meetingName, setMeetingName] = useState<string>(
+  const [meetingId] = useState<string>(state?.meetingId || "");
+  const [meetingName] = useState<string>(
     state?.meetingName || "Meeting",
   );
-  const [startTime, setStartTime] = useState<string>(state?.startTime || "");
-  const [endTime, setEndTime] = useState<string>(state?.endTime || "");
-  const [userId, setUserId] = useState<string>(state?.userId || ""); // ✅ Add userId state
+  const [startTime] = useState<string>(state?.startTime || "");
+  const [endTime] = useState<string>(state?.endTime || "");
+  const [userId] = useState<string>(state?.userId || ""); // ✅ Add userId state
 
   const [analytics, setAnalytics] = useState<MeetingAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
