@@ -3,3 +3,5 @@ uvicorn[standard]==0.27.0
 supabase==2.5.0
 python-dotenv==1.0.0
 pydantic==2.5.0
+aw-client==0.12.0
+aw-core==0.13.0 
