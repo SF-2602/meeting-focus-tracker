@@ -65,6 +65,8 @@ export const registerUser = async (userId: string) => {
   });
   if (!res.ok) throw new Error("Registration failed");
   return res.json();
+
+  console.log("🔗 API_BASE:", API_BASE);
 };
 
 export const getUserMeetings = async (
