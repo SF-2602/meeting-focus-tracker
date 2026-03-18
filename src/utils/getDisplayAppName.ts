@@ -4,7 +4,7 @@ export const getDisplayAppName = (
   category: string,
 ): string => {
   const lowerApp = app.toLowerCase();
-  const lowerTitle = title.toLowerCase();
+  // const lowerTitle = title.toLowerCase();
 
   const isBrowser = [
     "chrome",
