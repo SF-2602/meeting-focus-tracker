@@ -12,6 +12,7 @@ HOSTNAME = socket.gethostname()
 WINDOW_BUCKET = f"aw-watcher-window_{HOSTNAME}"
 AFK_BUCKET = f"aw-watcher-afk_{HOSTNAME}"
 
+#Before Restructure
 
 client = ActivityWatchClient("meeting-focus-client", testing=False)
 CATEGORIZATION_CACHE = {}
