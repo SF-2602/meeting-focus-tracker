@@ -85,6 +85,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def debug_cors(request, call_next):
+    origin = request.headers.get("origin")
+    if origin:
+        print(f"🔍 CORS request from: '{origin}'")
+    response = await call_next(request)
+    return response
+
 @app.post("/meetings/{meeting_id}/trigger-analysis", status_code=202)
 async def trigger_analysis_endpoint(
     meeting_id: str,
