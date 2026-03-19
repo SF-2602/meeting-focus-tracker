@@ -77,7 +77,7 @@ app.add_middleware(
     allow_origins=[
         "https://meeting-focus-tracker.vercel.app",
         "https://forespent-elba-unsmoulderingly.ngrok-free.dev",
-        "http://localhost:3000",                      
+        "http://localhost:5173",                      
         "http://127.0.0.1:3000",
     ],
     allow_credentials=True,
