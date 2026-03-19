@@ -75,7 +75,8 @@ class PublicMeetingResponse(BaseModel):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://meeting-focus-tracker.vercel.app/",
+        "https://meeting-focus-tracker.vercel.app",
+        "https://forespent-elba-unsmoulderingly.ngrok-free.dev",
         "http://localhost:3000",                      
         "http://127.0.0.1:3000",
     ],
